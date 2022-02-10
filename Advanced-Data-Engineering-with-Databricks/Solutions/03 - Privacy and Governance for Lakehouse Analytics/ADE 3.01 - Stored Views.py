@@ -28,16 +28,21 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/gold-setup
+# MAGIC %run ../Includes/module-3/setup-lesson-3.01-gold-setup
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC A helper function has been defined to process a new batch of data to the source tables used in this lesson. (Note: this may take around 2 minutes.)
+# MAGIC A number of helper functions has been defined to process a new batch of data to the source tables used in this lesson. (Note: this may take around 2 minutes.)
 
 # COMMAND ----------
 
-process_gold_sources()
+DA.data_factory.load()            # Load one new day for DA.paths.source_daily
+DA.process_bronze()               # Process through the bronze table
+DA.process_heart_rate_silver()    # Process the heart_rate_silver table
+DA.process_workouts_silver()      # Process the workouts_silver table
+DA.process_completed_workouts()   # Process the completed_workouts table
+DA.process_workout_bpm()          # Process the workout_bpm table
 
 # COMMAND ----------
 
@@ -54,7 +59,7 @@ gymDF.printSchema()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC A Spark DataFrame and a view are nearly identical constructs. By calling `explain` on our DataFrame, we can see that our source table is a set of instructions to deserialize the files containing our data.
+# MAGIC A Spark DataFrame and a view are nearly identical constructs. By calling **`explain`** on our DataFrame, we can see that our source table is a set of instructions to deserialize the files containing our data.
 
 # COMMAND ----------
 
@@ -79,12 +84,12 @@ gymDF.explain("formatted")
 # MAGIC %md
 # MAGIC ## Construct a Query
 # MAGIC 
-# MAGIC Our `completed_workouts` table indicates start and stop time for each user workout.
+# MAGIC Our **`completed_workouts`** table indicates start and stop time for each user workout.
 # MAGIC 
 # MAGIC Use the cell below to construct a query that identifies:
 # MAGIC - Each date a user completed at least one workout
-# MAGIC - The earliest `start_time` for any workout each day
-# MAGIC - The latest `end_time` for any workout each day
+# MAGIC - The earliest **`start_time`** for any workout each day
+# MAGIC - The latest **`end_time`** for any workout each day
 # MAGIC - The list of all workouts completed by a user each day
 
 # COMMAND ----------
@@ -102,7 +107,7 @@ gymDF.explain("formatted")
 # MAGIC 
 # MAGIC Now we'll join this data back to the MAC logs sent by the gym to create our view.
 # MAGIC 
-# MAGIC We'll retain the `mac_address` as our identifier, which we can grab from the `user_lookup` table.
+# MAGIC We'll retain the **`mac_address`** as our identifier, which we can grab from the **`user_lookup`** table.
 # MAGIC 
 # MAGIC We'll also add columns to calculate the total number of minutes elapsed during a user's visit to the gym, as well as the total number of minutes elapsed between the beginning of their first workout and the end of their final workout.
 
@@ -156,12 +161,11 @@ spark.table("gym_user_stats").explain("formatted")
 import py4j
 
 try:
-  spark.sql("SHOW GRANT ON VIEW gym_user_stats")
-
+    spark.sql("SHOW GRANT ON VIEW gym_user_stats")
+    
 except py4j.protocol.Py4JJavaError as e:
-  print("Error: " + e.java_exception.getMessage())
-  print("Solution: Consider enabling Table Access Control to demonstrate this feature.")
-
+    print("Error: " + e.java_exception.getMessage())
+    print("Solution: Consider enabling Table Access Control to demonstrate this feature.")
 
 # COMMAND ----------
 
@@ -173,11 +177,20 @@ except py4j.protocol.Py4JJavaError as e:
 # COMMAND ----------
 
 try:
-  spark.sql("SHOW GRANT ON TABLE bronze")
-  
+    spark.sql("SHOW GRANT ON TABLE bronze")
+    
 except py4j.protocol.Py4JJavaError as e:
-  print("Error: " + e.java_exception.getMessage())
-  print("Solution: Consider enabling Table Access Control to demonstrate this feature.")
+    print("Error: " + e.java_exception.getMessage())
+    print("Solution: Consider enabling Table Access Control to demonstrate this feature.")
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

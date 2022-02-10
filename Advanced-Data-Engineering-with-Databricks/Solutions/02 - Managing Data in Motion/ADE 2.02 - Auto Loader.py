@@ -20,8 +20,8 @@
 # MAGIC 
 # MAGIC ## Learning Objectives
 # MAGIC By the end of this lesson, students will be able to:
-# MAGIC - Use Auto Loader to incrementally, indempotently load data from object storage to Delta Tables
-# MAGIC - Locate operation metrics using the `DESCRIBE HISTORY` command
+# MAGIC - Use Auto Loader to incrementally, idempotently load data from object storage to Delta Tables
+# MAGIC - Locate operation metrics using the **`DESCRIBE HISTORY`** command
 
 # COMMAND ----------
 
@@ -51,18 +51,20 @@
 # MAGIC * Add type hints for enforcement when schema is known
 # MAGIC * Rescue data that does not meet expectations
 # MAGIC 
-# MAGIC Full documentation of this functionality is available [here](https://docs.databricks.com/spark/latest/structured-streaming/auto-loader-schema.html).
+# MAGIC Full documentation of this functionality is available <a href="https://docs.databricks.com/spark/latest/structured-streaming/auto-loader-schema.html" target="_blank">here</a>.
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Setup
 # MAGIC 
-# MAGIC The notebook below defines a function to allow us to manually trigger new data landing in our source container. This will allow us to see Auto Loader in action.
+# MAGIC The notebook below defines a function to allow us to manually trigger new data landing in our source container. 
+# MAGIC 
+# MAGIC This will allow us to see Auto Loader in action.
 
 # COMMAND ----------
 
-# MAGIC %run "../Includes/gym-mac-log-prep" $mode="reset"
+# MAGIC %run ../Includes/module-2/setup-lesson-2.02-gym-mac-log-prep
 
 # COMMAND ----------
 
@@ -71,8 +73,8 @@
 
 # COMMAND ----------
 
-files = dbutils.fs.ls(gym_mac_logs)
-files
+files = dbutils.fs.ls(DA.paths.gym_mac_logs_json)
+display(files)
 
 # COMMAND ----------
 
@@ -89,32 +91,31 @@ schema
 # MAGIC %md
 # MAGIC ## Using CloudFiles
 # MAGIC 
-# MAGIC Configuring Auto Loader requires using the `cloudFiles` format. The syntax for this format differs only slightly from a standard streaming read.
+# MAGIC Configuring Auto Loader requires using the **`cloudFiles`** format. The syntax for this format differs only slightly from a standard streaming read.
 # MAGIC 
-# MAGIC All we need to ddo is replace our file format with `cloudFiles`, and add the file type as a string for the option `cloudFiles.format`.
+# MAGIC All we need to do is replace our file format with **`cloudFiles`**, and add the file type as a string for the option **`cloudFiles.format`**.
 # MAGIC 
-# MAGIC Additional [configuration options](https://docs.databricks.com/spark/latest/structured-streaming/auto-loader.html#configuration) are available.
+# MAGIC Additional <a href="https://docs.databricks.com/spark/latest/structured-streaming/auto-loader.html#configuration" target="_blank">configuration options</a> are available.
 
 # COMMAND ----------
 
 def load_gym_logs():
-    (spark.readStream.format("cloudFiles")
+    query = (spark.readStream.format("cloudFiles")
         .option("cloudFiles.format", "json")
-#         .option("cloudFiles.useNotifications","true") # Set this option for file notification mode
+        # .option("cloudFiles.useNotifications","true") # Set this option for file notification mode
         .schema(schema)
-        .load(gym_mac_logs)
+        .load(DA.paths.gym_mac_logs_json)
         .writeStream
         .format("delta")
-        .option("checkpointLocation", Paths.gymMacLogsCheckpoint)
+        .option("checkpointLocation", f"{DA.paths.checkpoints}/gym_mac_logs.chk")
         .trigger(once=True)
-        .option("path", Paths.gymMacLogs)
         .table("gym_mac_logs")
         .awaitTermination())
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that we're using trigger once logic for batch execution. While we may not have the latency requirements of a Structured Streaming workload, Auto Loader prevents any CDC on our file source, allowing us to simply trigger a chron job daily to process all new data that's arrived.
+# MAGIC Note that we're using trigger once logic for batch execution. While we may not have the latency requirements of a Structured Streaming workload, Auto Loader prevents any CDC on our file source, allowing us to simply trigger a cron job daily to process all new data that's arrived.
 
 # COMMAND ----------
 
@@ -127,7 +128,7 @@ load_gym_logs()
 
 # COMMAND ----------
 
-display(spark.sql(f"DESCRIBE HISTORY delta.`{Paths.gymMacLogs}`"))
+# MAGIC %sql DESCRIBE HISTORY gym_mac_logs
 
 # COMMAND ----------
 
@@ -136,7 +137,7 @@ display(spark.sql(f"DESCRIBE HISTORY delta.`{Paths.gymMacLogs}`"))
 
 # COMMAND ----------
 
-NewFile.arrival()
+DA.data_factory.load()
 
 # COMMAND ----------
 
@@ -146,7 +147,10 @@ NewFile.arrival()
 # COMMAND ----------
 
 load_gym_logs()
-display(spark.sql(f"DESCRIBE HISTORY delta.`{Paths.gymMacLogs}`"))
+
+# COMMAND ----------
+
+# MAGIC %sql DESCRIBE HISTORY gym_mac_logs
 
 # COMMAND ----------
 
@@ -155,8 +159,12 @@ display(spark.sql(f"DESCRIBE HISTORY delta.`{Paths.gymMacLogs}`"))
 
 # COMMAND ----------
 
-NewFile.arrival(continuous=True)
+DA.data_factory.load(continuous=True)
 load_gym_logs()
+
+# COMMAND ----------
+
+# MAGIC %sql DESCRIBE HISTORY gym_mac_logs
 
 # COMMAND ----------
 
@@ -167,6 +175,15 @@ load_gym_logs()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM gym_mac_logs
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

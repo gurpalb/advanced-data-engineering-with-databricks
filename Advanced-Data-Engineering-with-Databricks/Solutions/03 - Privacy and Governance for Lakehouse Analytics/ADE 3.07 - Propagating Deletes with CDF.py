@@ -31,17 +31,17 @@
 
 # COMMAND ----------
 
-# MAGIC %run "../Includes/ade-setup"
+# MAGIC %run ../Includes/module-3/setup-lesson-3.07-ade-setup
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Requirements for Fulfilling Requests to Be Forgotten
 # MAGIC 
-# MAGIC The `user_lookup` table contains the link between the `alt_id` used as the primary key for the `users` table and natural keys found elsewhere in the lakehouse.
+# MAGIC The **`user_lookup`** table contains the link between the **`alt_id`** used as the primary key for the **`users`** table and natural keys found elsewhere in the lakehouse.
 # MAGIC 
 # MAGIC Different industries will have different requirements for data deletion and data retention. Here, we'll assume the following:
-# MAGIC 1. All PII in the `users` table must be deleted
+# MAGIC 1. All PII in the **`users`** table must be deleted
 # MAGIC 1. Links between pseudonymized keys and natural keys should be forgotten
 # MAGIC 1. A policy to remove historic data containing PII from raw data sources and logs should be enacted
 # MAGIC 
@@ -114,7 +114,7 @@ display(requestsDF)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC With DataFrames, commit messages can also be specified as part of the write options using the `userMetadata` option.
+# MAGIC With DataFrames, commit messages can also be specified as part of the write options using the **`userMetadata`** option.
 # MAGIC 
 # MAGIC Here, we'll indicate that we're manually processing these requests in a notebook, rather than using an automated job.
 
@@ -145,11 +145,11 @@ display(requestsDF)
 # MAGIC %md
 # MAGIC ## Processing Delete Requests
 # MAGIC 
-# MAGIC The `delete_requests` table will be used to track users' requests to be forgotten. Note that it is possible to process delete requests alongside inserts and updates to existing data as part of a normal `MERGE` statement.
+# MAGIC The **`delete_requests`** table will be used to track users' requests to be forgotten. Note that it is possible to process delete requests alongside inserts and updates to existing data as part of a normal **`MERGE`** statement.
 # MAGIC 
-# MAGIC Because PII exists in several places through the current lakehouse, tracking requests and processing them asyncronously may provide better performance for production jobs with low latency SLAs. The approach modeled here also indicates the time at which the delete was requested and the deadline, and provides a field to indicate the current processing status of the request.
+# MAGIC Because PII exists in several places through the current lakehouse, tracking requests and processing them asynchronously may provide better performance for production jobs with low latency SLAs. The approach modeled here also indicates the time at which the delete was requested and the deadline, and provides a field to indicate the current processing status of the request.
 # MAGIC 
-# MAGIC Review the `delete_requests` table below.
+# MAGIC Review the **`delete_requests`** table below.
 
 # COMMAND ----------
 
@@ -163,7 +163,7 @@ display(requestsDF)
 # MAGIC 
 # MAGIC We'll be using Change Data Feed to power deletes to many tables from a single source.
 # MAGIC 
-# MAGIC Because the `user_lookup` table links identifying information between different pipelines, we'll make this the point where deletes propagate from.
+# MAGIC Because the **`user_lookup`** table links identifying information between different pipelines, we'll make this the point where deletes propagate from.
 # MAGIC 
 # MAGIC Start by altering the table properties to enable Change Data Feed.
 
@@ -198,9 +198,9 @@ print(start_version)
 
 # MAGIC %md
 # MAGIC ## Committing Deletes
-# MAGIC When working with static data, commiting deletes is simple. 
+# MAGIC When working with static data, committing deletes is simple. 
 # MAGIC 
-# MAGIC The following logic modifies the `user_lookup` table by rewriting all data files containing records affected by the `DELETE` statement. Recall that with Delta Lake, deleting data will create new data files rather than deleting existing data files.
+# MAGIC The following logic modifies the **`user_lookup`** table by rewriting all data files containing records affected by the **`DELETE`** statement. Recall that with Delta Lake, deleting data will create new data files rather than deleting existing data files.
 
 # COMMAND ----------
 
@@ -212,9 +212,9 @@ print(start_version)
 
 # MAGIC %md
 # MAGIC ## Propagate Deletes
-# MAGIC While the lakehouse architecture implemented here typically uses the `user_lookup` as a static table in joins with incremental data, the Change Data Feed can be separately leveraged as an incremental record of data changes.
+# MAGIC While the lakehouse architecture implemented here typically uses the **`user_lookup`** as a static table in joins with incremental data, the Change Data Feed can be separately leveraged as an incremental record of data changes.
 # MAGIC 
-# MAGIC The code below configures as incremental read of all changes committed to the `user_lookup` table.
+# MAGIC The code below configures as incremental read of all changes committed to the **`user_lookup`** table.
 
 # COMMAND ----------
 
@@ -227,11 +227,11 @@ deleteDF = (spark.readStream
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The relationships between our natural keys (`user_id`, `device_id`, and `mac_address`) are stored in our `user_lookup`. These allow us to link a user's data between various pipelines/sources. The Change Data Feed from this table will maintain all these fields, allowing successful identification of records to be deleted or modified in downstream tables.
+# MAGIC The relationships between our natural keys (**`user_id`**, **`device_id`**, and **`mac_address`**) are stored in our **`user_lookup`**. These allow us to link a user's data between various pipelines/sources. The Change Data Feed from this table will maintain all these fields, allowing successful identification of records to be deleted or modified in downstream tables.
 # MAGIC 
-# MAGIC The function below demonstrates committing deletes to two tables using different keys and syntax. Note that in this case, the `MERGE` syntax demonstrated is not necessary to process the deletes to the `users` table; this code block does demonstrate the basic syntax that could be expanded if inserts and updates were to be processed in the same code block as deletes.
+# MAGIC The function below demonstrates committing deletes to two tables using different keys and syntax. Note that in this case, the **`MERGE`** syntax demonstrated is not necessary to process the deletes to the **`users`** table; this code block does demonstrate the basic syntax that could be expanded if inserts and updates were to be processed in the same code block as deletes.
 # MAGIC 
-# MAGIC Assuming successful completion of these two table modifications, an update will be process back to the `delete_requests` table. Note that we're leveraging data that has been successfully deleted from the `user_lookup` table to update a value in the `delete_requests` table.
+# MAGIC Assuming successful completion of these two table modifications, an update will be process back to the **`delete_requests`** table. Note that we're leveraging data that has been successfully deleted from the **`user_lookup`** table to update a value in the **`delete_requests`** table.
 
 # COMMAND ----------
 
@@ -265,7 +265,7 @@ def process_deletes(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Recall that this workload is being driven by incremental changes to the `user_lookup` table (tracked through the Change Data Feed). Executing the following cell will propagate deletes to a single table to multiple tables throughout the lakehouse.
+# MAGIC Recall that this workload is being driven by incremental changes to the **`user_lookup`** table (tracked through the Change Data Feed). Executing the following cell will propagate deletes to a single table to multiple tables throughout the lakehouse.
 
 # COMMAND ----------
 
@@ -281,7 +281,7 @@ def process_deletes(microBatchDF, batchId):
 
 # MAGIC %md
 # MAGIC ## Review Delete Commits
-# MAGIC Note that with our current implementation, if a user registration never made it into the `user_lookup` table, data for this user will not be deleted from other tables. However, the status for these records in the `delete_requests` table will also remain `requested`, so a redundant approach could be applied if necessary.
+# MAGIC Note that with our current implementation, if a user registration never made it into the **`user_lookup`** table, data for this user will not be deleted from other tables. However, the status for these records in the **`delete_requests`** table will also remain **`requested`**, so a redundant approach could be applied if necessary.
 
 # COMMAND ----------
 
@@ -291,9 +291,9 @@ def process_deletes(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that our commit message will be in the far right column of our history, under the column `userMetadata`.
+# MAGIC Note that our commit message will be in the far right column of our history, under the column **`userMetadata`**.
 # MAGIC 
-# MAGIC For the `users` table, the operation field in the history will indicate a merge because of the chosen syntax, even though only deletes were committed. The number of deleted rows can be reviewed in the `operationMetrics`.
+# MAGIC For the **`users`** table, the operation field in the history will indicate a merge because of the chosen syntax, even though only deletes were committed. The number of deleted rows can be reviewed in the **`operationMetrics`**.
 
 # COMMAND ----------
 
@@ -303,7 +303,7 @@ def process_deletes(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC As expected, `user_bins` will show a delete.
+# MAGIC As expected, **`user_bins`** will show a delete.
 
 # COMMAND ----------
 
@@ -313,7 +313,7 @@ def process_deletes(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The changes to `delete_requests` also show a merge operation, and appropriately show that records have been updated rather than deleted in this table.
+# MAGIC The changes to **`delete_requests`** also show a merge operation, and appropriately show that records have been updated rather than deleted in this table.
 
 # COMMAND ----------
 
@@ -329,7 +329,7 @@ def process_deletes(microBatchDF, batchId):
 # MAGIC 
 # MAGIC Because of how Delta Lake's history and CDF features are implemented, deleted values are still present in older versions of the data.
 # MAGIC 
-# MAGIC The query below shows the records deleted in v1 of the `user_bins` table.
+# MAGIC The query below shows the records deleted in v1 of the **`user_bins`** table.
 
 # COMMAND ----------
 
@@ -341,7 +341,7 @@ def process_deletes(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Similarly, while we've already applied our logic on the incremental data produced by deletes committed to the `user_lookup` table, this information is still available within the change feed.
+# MAGIC Similarly, while we've already applied our logic on the incremental data produced by deletes committed to the **`user_lookup`** table, this information is still available within the change feed.
 
 # COMMAND ----------
 
@@ -353,8 +353,27 @@ display(spark.read
 
 # COMMAND ----------
 
+# MAGIC %md Stop any streams we may have left running
+
+# COMMAND ----------
+
+for stream in spark.streams.active:
+    stream.stop()
+    stream.awaitTermination()
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC The next notebook will explore fully committing these deletes, as well as providing guidance for removing access to historic raw data containing PII.
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

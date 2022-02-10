@@ -10,17 +10,15 @@
 # MAGIC %md
 # MAGIC # Monitoring Streaming Progress
 # MAGIC 
-# MAGIC This notebook is configured to incrementally load the JSON logs written by the custom StreamingQueryListener.
+# MAGIC This notebook is configured to incrementally load the JSON logs written by the custom [StreamingQueryListener]($../../Includes/module-4/StreamingQueryListener).
 # MAGIC 
-# MAGIC Note that executing this on a small cluster in conjunction with streaming and batch operations may lead to significant slowdown. Ideally, all jobs should be scheduled on isolated jobs clusters.
+# MAGIC Note that executing this on a small cluster in conjunction with streaming and batch operations may lead to significant slowdown. 
+# MAGIC 
+# MAGIC Ideally, all jobs should be scheduled on isolated jobs clusters.
 
 # COMMAND ----------
 
-username = spark.sql("SELECT current_user()").collect()[0][0]
-
-streaming_logs = f"dbfs:/user/{username}/streaming_logs/"
-streaming_logs_delta = f"dbfs:/user/{username}/streaming_logs_delta/"
-streaming_logs_checkpoint = f"dbfs:/user/{username}/streaming_logs_delta/_checkpoint"
+# MAGIC %run ../../Includes/module-4/setup-lesson-4.03.4-ade-setup
 
 # COMMAND ----------
 
@@ -29,16 +27,18 @@ streaming_logs_checkpoint = f"dbfs:/user/{username}/streaming_logs_delta/_checkp
 
 # COMMAND ----------
 
-(spark.readStream.format("cloudFiles")
-    .option("cloudFiles.format", "json")
-    .option("cloudFiles.schemaLocation", streaming_logs_checkpoint)
-    .load(streaming_logs)
-    .writeStream
-    .option("mergeSchema", True)
-    .option("checkpointLocation", streaming_logs_checkpoint)
-    .trigger(once=True)
-    .start(streaming_logs_delta)
-    .awaitTermination())
+query = (spark.readStream
+              .format("cloudFiles")
+              .option("cloudFiles.format", "json")
+              .option("cloudFiles.schemaLocation", f"{DA.paths.checkpoints}/streaming_logs")
+              .load(DA.paths.streaming_logs_json)
+              .writeStream
+              .option("mergeSchema", True)
+              .option("checkpointLocation", f"{DA.paths.checkpoints}/streaming_logs")
+              .trigger(once=True)
+              .start(DA.paths.streaming_logs_delta))
+
+query.awaitTermination()
 
 # COMMAND ----------
 
@@ -47,7 +47,19 @@ streaming_logs_checkpoint = f"dbfs:/user/{username}/streaming_logs_delta/_checkp
 
 # COMMAND ----------
 
-display(spark.read.load(streaming_logs_delta))
+display(spark.read.load(DA.paths.streaming_logs_delta))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Wraping Up
+# MAGIC 
+# MAGIC * Stop/Pause the jobs
+# MAGIC * Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

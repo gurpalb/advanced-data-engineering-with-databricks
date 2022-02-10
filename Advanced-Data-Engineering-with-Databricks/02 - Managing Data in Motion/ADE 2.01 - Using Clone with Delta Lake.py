@@ -10,7 +10,7 @@
 # MAGIC %md
 # MAGIC # Using Clone with Delta Lake
 # MAGIC 
-# MAGIC Delta Lake provides native support for copying existing tables with `CLONE`. This notebook will explore both deep and shallow clones. The docs for this feature are [here](https://docs.databricks.com/delta/delta-utility.html#clone-a-delta-table); full syntax docs are available [here](https://docs.databricks.com/spark/latest/spark-sql/language-manual/delta-clone.html).
+# MAGIC Delta Lake provides native support for copying existing tables with **`CLONE`**. This notebook will explore both deep and shallow clones. The docs for this feature are <a href="https://docs.databricks.com/delta/delta-utility.html#clone-a-delta-table" target="_blank">here</a>; full syntax docs are available <a href="https://docs.databricks.com/spark/latest/spark-sql/language-manual/delta-clone.html" target="_blank">here</a>.
 # MAGIC 
 # MAGIC ## Learning Objectives
 # MAGIC By the end of this lesson, you should be able to:
@@ -27,13 +27,13 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/clone-setup $mode="reset"
+# MAGIC %run ../Includes/module-2/setup-lesson-2.01-clone-setup $mode="reset"
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Look at the production table details
-# MAGIC The production table we'll be using as our source is named `sensors_prod`.
+# MAGIC The production table we'll be using as our source is named **`sensors_prod`**.
 # MAGIC 
 # MAGIC Use the following cell to explore the table history. Note that 4 total transactions have been run to create and load data into this table.
 
@@ -55,17 +55,18 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The helper function `check_files` was defined to accept a table name and return the count of underlying data files (as well as list the content of the table directory).
+# MAGIC The helper function **`DA.check_files`** was defined to accept a table name and return the count of underlying data files (as well as list the content of the table directory).
 # MAGIC 
 # MAGIC Recall that all Delta tables comprise:
 # MAGIC 1. Data files stored in parquet format
-# MAGIC 1. Transaction logs stored in the `_delta_log` directory
+# MAGIC 1. Transaction logs stored in the **`_delta_log`** directory
 # MAGIC 
 # MAGIC The table name we're interacting with in the metastore is just a pointer to these underlying assets.
 
 # COMMAND ----------
 
-check_files("sensors_prod")
+files = DA.check_files("sensors_prod")
+display(files)
 
 # COMMAND ----------
 
@@ -79,16 +80,16 @@ check_files("sensors_prod")
 # MAGIC %sql
 # MAGIC CREATE OR REPLACE TABLE sensors_backup 
 # MAGIC DEEP CLONE sensors_prod
-# MAGIC LOCATION '${c.userhome}/backup/sensors'
+# MAGIC LOCATION '${da.paths.working_dir}/backup/sensors'
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC You'll recall that our `sensors_prod` table had 4 versions associated with it. The clone operation created version 0 of the cloned table. 
+# MAGIC You'll recall that our **`sensors_prod`** table had 4 versions associated with it. The clone operation created version 0 of the cloned table. 
 # MAGIC 
-# MAGIC The `operationsParameters` field indicates the `sourceVersion` that was cloned.
+# MAGIC The **`operationsParameters`** field indicates the **`sourceVersion`** that was cloned.
 # MAGIC 
-# MAGIC The `operationMetrics` field will provide information about the files copied during this transaction.
+# MAGIC The **`operationMetrics`** field will provide information about the files copied during this transaction.
 
 # COMMAND ----------
 
@@ -116,12 +117,13 @@ check_files("sensors_prod")
 
 # COMMAND ----------
 
-check_files("sensors_backup")
+files = DA.check_files("sensors_backup")
+display(files)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC To see incremental clone in action, begin by commiting a transaction to the `sensor_prod` table. Here, we'll delete all those records where `sensor_type` is `C`.
+# MAGIC To see incremental clone in action, begin by committing a transaction to the **`sensor_prod`** table. Here, we'll delete all those records where **`sensor_type`** is "C".
 # MAGIC 
 # MAGIC Remember that Delta Lake manages changes at the file level, so any file containing a matching record will be rewritten.
 
@@ -140,7 +142,7 @@ check_files("sensors_backup")
 # MAGIC %sql
 # MAGIC CREATE OR REPLACE TABLE sensors_backup 
 # MAGIC DEEP CLONE sensors_prod
-# MAGIC LOCATION '${c.userhome}/backup/sensors'
+# MAGIC LOCATION '${da.paths.working_dir}/backup/sensors'
 
 # COMMAND ----------
 
@@ -168,7 +170,7 @@ check_files("sensors_backup")
 # MAGIC %sql
 # MAGIC CREATE OR REPLACE TABLE sensors_dev
 # MAGIC SHALLOW CLONE sensors_prod@v2
-# MAGIC LOCATION '${c.userhome}/dev/sensors'
+# MAGIC LOCATION '${da.paths.working_dir}/dev/sensors'
 
 # COMMAND ----------
 
@@ -177,7 +179,8 @@ check_files("sensors_backup")
 
 # COMMAND ----------
 
-check_files("sensors_dev")
+files = DA.check_files("sensors_dev")
+display(files)
 
 # COMMAND ----------
 
@@ -185,7 +188,7 @@ check_files("sensors_dev")
 # MAGIC ## Apply Changes to Dev Data
 # MAGIC But what happens if you want to test modifications to your dev table?
 # MAGIC 
-# MAGIC The code below inserts only those records from version 3 of our production table that don't have the value "C" as a `sensor_type`.
+# MAGIC The code below inserts only those records from version 3 of our production table that don't have the value "C" as a **`sensor_type`**.
 
 # COMMAND ----------
 
@@ -202,7 +205,8 @@ check_files("sensors_dev")
 
 # COMMAND ----------
 
-check_files("sensors_dev")
+files = DA.check_files("sensors_dev")
+display(files)
 
 # COMMAND ----------
 
@@ -216,7 +220,7 @@ check_files("sensors_dev")
 # MAGIC 
 # MAGIC It's important to understand how cloned tables behave with file retention actions.
 # MAGIC 
-# MAGIC Run the cell below to `VACUUM` your source production table (removing all files not referenced in the most recent version).
+# MAGIC Run the cell below to **`VACUUM`** your source production table (removing all files not referenced in the most recent version).
 
 # COMMAND ----------
 
@@ -231,24 +235,27 @@ spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", True)
 
 # COMMAND ----------
 
-check_files("sensors_prod")
+files = DA.check_files("sensors_prod")
+display(files)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC You'll recall that our `sensors_dev` table was initialized against version 2 of our production table. As such, it still has reference to data files associated with that table version.
+# MAGIC You'll recall that our **`sensors_dev`** table was initialized against version 2 of our production table. As such, it still has reference to data files associated with that table version.
 # MAGIC 
 # MAGIC Because these data files have been removed by our vacuum operation, we should expect the following query against our shallow cloned table to fail.
+# MAGIC 
+# MAGIC Uncomment it now and give it a try:
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT * FROM sensors_dev
+# MAGIC %sql 
+# MAGIC -- SELECT * FROM sensors_dev
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Because deep clone created a full copy of our files and associated metadata, we still have access to our `sensors_backup` table. Here, we'll query the original version of this backup (which corresponds to version 3 of our source table).
+# MAGIC Because deep clone created a full copy of our files and associated metadata, we still have access to our **`sensors_backup`** table. Here, we'll query the original version of this backup (which corresponds to version 3 of our source table).
 
 # COMMAND ----------
 
@@ -277,12 +284,15 @@ check_files("sensors_prod")
 # MAGIC ## Wrapping Up
 # MAGIC 
 # MAGIC In this notebook, we explored the basic syntax and behavior of deep and shallow clones. We saw how changes to source and clone tables impacted tables, including the ability to incrementally clone changes to keep a backup table in-sync with its source. We saw that shallow clone could be used for creating temporary tables for development based on production data, but noted that removal of source data files will lead to errors when trying to query this shallow clone.
-# MAGIC 
-# MAGIC Run the following cell to delete the tables and files associated with this demo.
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/clone-setup $mode="cleanup"
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

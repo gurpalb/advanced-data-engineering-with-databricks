@@ -32,7 +32,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/sql-setup $lesson="demo" $mode="reset"
+# MAGIC %run ../Includes/module-1/setup-lesson-1.01
 
 # COMMAND ----------
 
@@ -46,7 +46,8 @@
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT "${c.database}";
+# MAGIC SELECT '${da.db_name}' as db_name, 
+# MAGIC        '${da.paths.working_dir}' as working_dir
 
 # COMMAND ----------
 
@@ -58,18 +59,18 @@
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DROP DATABASE IF EXISTS ${c.database} CASCADE
+# MAGIC DROP DATABASE IF EXISTS ${da.db_name} CASCADE;
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Important Database Options
 # MAGIC 
-# MAGIC The single most important option when creating a new database is the `LOCATION`. Because all managed tables will have their data files stored in this location, modifying the location of a database after initial declaration can require migration of many data files. Using an improper location can potentially store data in an unsecured location and lead to data exfiltration or deletion.
+# MAGIC The single most important option when creating a new database is the **`LOCATION`**. Because all managed tables will have their data files stored in this location, modifying the location of a database after initial declaration can require migration of many data files. Using an improper location can potentially store data in an unsecured location and lead to data exfiltration or deletion.
 # MAGIC 
-# MAGIC The database `COMMENT` option allows an arbitrary description to be provided for the database. This can be useful for both discovery and auditing purposes.
+# MAGIC The database **`COMMENT`** option allows an arbitrary description to be provided for the database. This can be useful for both discovery and auditing purposes.
 # MAGIC 
-# MAGIC The `DBPROPERTIES` option allows user-defined keys to be specified for the database. This can be useful for creating tags that will be used in auditing. Note that this field may also contain options used elsewhere in Databricks to govern default behavior for the database.
+# MAGIC The **`DBPROPERTIES`** option allows user-defined keys to be specified for the database. This can be useful for creating tags that will be used in auditing. Note that this field may also contain options used elsewhere in Databricks to govern default behavior for the database.
 
 # COMMAND ----------
 
@@ -86,35 +87,35 @@
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE DATABASE ${c.database}
+# MAGIC CREATE DATABASE IF NOT EXISTS ${da.db_name}
 # MAGIC COMMENT "This is a test database"
-# MAGIC LOCATION "${c.userhome}"
+# MAGIC LOCATION "${da.paths.user_db}"
 # MAGIC WITH DBPROPERTIES (contains_pii = true)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC All of the comments and properties set during database declaration can be reviewed using `DESCRIBE DATABASE EXTENDED`.
+# MAGIC All of the comments and properties set during database declaration can be reviewed using **`DESCRIBE DATABASE EXTENDED`**.
 # MAGIC 
 # MAGIC This information can aid in data discovery, auditing, and governance. Having proactive rules about how databases will be created and tagged can help prevent accidental data exfiltration, redundancies, and deletions.
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DESCRIBE DATABASE EXTENDED ${c.database}
+# MAGIC DESCRIBE DATABASE EXTENDED ${da.db_name}
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Important Table Options
 # MAGIC 
-# MAGIC The `LOCATION` keyword also plays a pivotal role when declaring tables, as it determines whether a table is **managed** or **external**. Note that explicitly providing a location will always result in an external table, even if this location maps directly to the directory that would be used by default.
+# MAGIC The **`LOCATION`** keyword also plays a pivotal role when declaring tables, as it determines whether a table is **managed** or **external**. Note that explicitly providing a location will always result in an external table, even if this location maps directly to the directory that would be used by default.
 # MAGIC 
-# MAGIC Tables also have the `COMMENT` option to provide a table description.
+# MAGIC Tables also have the **`COMMENT`** option to provide a table description.
 # MAGIC 
-# MAGIC Tables have the `TBLPROPERTIES` option that can also contain user-defined tags. All Delta Lake tables will have some default options stored to this field, and many customizations for Delta behavior will be reflected here.
+# MAGIC Tables have the **`TBLPROPERTIES`** option that can also contain user-defined tags. All Delta Lake tables will have some default options stored to this field, and many customizations for Delta behavior will be reflected here.
 # MAGIC 
-# MAGIC Users can also define a `COMMENT` for an individual column.
+# MAGIC Users can also define a **`COMMENT`** for an individual column.
 
 # COMMAND ----------
 
@@ -128,7 +129,7 @@
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE TABLE ${c.database}.pii_test
+# MAGIC CREATE TABLE ${da.db_name}.pii_test
 # MAGIC (id INT, name STRING COMMENT "PII")
 # MAGIC COMMENT "Contains PII"
 # MAGIC TBLPROPERTIES ('contains_pii' = True) 
@@ -136,14 +137,14 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Much like the command for reviewing database metadata settings, `DESCRIBE EXTENDED` allows users to see all of the comments and properties for a given table.
+# MAGIC Much like the command for reviewing database metadata settings, **`DESCRIBE EXTENDED`** allows users to see all of the comments and properties for a given table.
 # MAGIC 
 # MAGIC **NOTE**: Delta Lake automatically adds several table properties on table creation.
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DESCRIBE EXTENDED ${c.database}.pii_test
+# MAGIC DESCRIBE EXTENDED ${da.db_name}.pii_test
 
 # COMMAND ----------
 
@@ -155,10 +156,10 @@
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE TABLE ${c.database}.pii_test_2
+# MAGIC CREATE TABLE ${da.db_name}.pii_test_2
 # MAGIC (id INT, name STRING COMMENT "PII")
 # MAGIC COMMENT "Contains PII"
-# MAGIC LOCATION "${c.userhome}/pii_test_2"
+# MAGIC LOCATION "${da.paths.working_dir}/pii_test_2"
 # MAGIC TBLPROPERTIES ('contains_pii' = True) 
 
 # COMMAND ----------
@@ -169,7 +170,7 @@
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC DESCRIBE EXTENDED ${c.database}.pii_test_2
+# MAGIC DESCRIBE EXTENDED ${da.db_name}.pii_test_2
 
 # COMMAND ----------
 
@@ -185,16 +186,16 @@
 def parse_table_keys(database, table=None):
     table_keys = {}
     if table:
-        query = f"SHOW TABLES IN {database} LIKE '{table}'"
+        query = f"SHOW TABLES IN {DA.db_name} LIKE '{table}'"
     else:
-        query = f"SHOW TABLES IN {database}"
+        query = f"SHOW TABLES IN {DA.db_name}"
     for table_item in spark.sql(query).collect():
         table_name = table_item[1]
-        key_values = spark.sql(f"DESCRIBE EXTENDED {database}.{table_name}").filter("col_name = 'Table Properties'").collect()[0][1][1:-1].split(",")
+        key_values = spark.sql(f"DESCRIBE EXTENDED {DA.db_name}.{table_name}").filter("col_name = 'Table Properties'").collect()[0][1][1:-1].split(",")
         table_keys[table_name] = [kv for kv in key_values if not kv.startswith("delta.")]
     return table_keys
 
-parse_table_keys(database)   
+parse_table_keys(DA.db_name)   
 
 # COMMAND ----------
 
@@ -204,15 +205,15 @@ parse_table_keys(database)
 # MAGIC Use the following cell to:
 # MAGIC 1. Create a new **managed** table
 # MAGIC 1. Using the database and table name provided
-# MAGIC 1. Define 4 columns with [any valid data type](https://spark.apache.org/docs/latest/sql-ref-datatypes.html)
+# MAGIC 1. Define 4 columns with <a href="https://spark.apache.org/docs/latest/sql-ref-datatypes.html" target="_blank">any valid data type</a>
 # MAGIC 1. Add a table comment
-# MAGIC 1. Use the `TBLPROPERTIES` option to set the key-value pair `'contains_pii' = False`
+# MAGIC 1. Use the **`TBLPROPERTIES`** option to set the key-value pair **`'contains_pii' = False`**
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC -- ANSWER
-# MAGIC CREATE TABLE ${c.database}.challenge
+# MAGIC CREATE TABLE ${da.db_name}.challenge
 # MAGIC (col1 STRING, col2 DATE, col3 DOUBLE, col4 INT)
 # MAGIC COMMENT "This is a table"
 # MAGIC TBLPROPERTIES ('contains_pii' = False)
@@ -224,11 +225,20 @@ parse_table_keys(database)
 
 # COMMAND ----------
 
-assert len(spark.sql(f"SHOW TABLES IN {database} LIKE 'challenge'").collect()) > 0, f"Table 'challenge' not in {database}"
-assert parse_table_keys(database, 'challenge') == {'challenge': ['contains_pii=false']}, "PII flag not set correctly"
-assert len(spark.table(f"{database}.challenge").columns) == 4, "Table does not have 4 columns"
-assert [x.tableType for x in spark.catalog.listTables(database) if x.name=="challenge"] == ["MANAGED"], "Table is not managed"
-assert spark.sql(f"DESCRIBE EXTENDED {database}.challenge").filter("col_name = 'Comment'").collect() != [], "Table comment not set"
+assert len(spark.sql(f"SHOW TABLES IN {DA.db_name} LIKE 'challenge'").collect()) > 0, f"Table 'challenge' not in {da.db_name}"
+assert parse_table_keys(DA.db_name, 'challenge') == {'challenge': ['contains_pii=false']}, "PII flag not set correctly"
+assert len(spark.table(f"{DA.db_name}.challenge").columns) == 4, "Table does not have 4 columns"
+assert [x.tableType for x in spark.catalog.listTables(DA.db_name) if x.name=="challenge"] == ["MANAGED"], "Table is not managed"
+assert spark.sql(f"DESCRIBE EXTENDED {DA.db_name}.challenge").filter("col_name = 'Comment'").collect() != [], "Table comment not set"
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

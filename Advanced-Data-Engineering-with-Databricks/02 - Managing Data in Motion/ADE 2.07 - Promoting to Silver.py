@@ -19,7 +19,7 @@
 # MAGIC - Apply table constraints to Delta Lake tables
 # MAGIC - Use flagging to identify records failing to meet certain conditions
 # MAGIC - Apply de-duplication within an incremental microbatch
-# MAGIC - Use `MERGE` to avoid inserting duplicate records to a Delta Lake table
+# MAGIC - Use **`MERGE`** to avoid inserting duplicate records to a Delta Lake table
 
 # COMMAND ----------
 
@@ -28,7 +28,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/silver-setup
+# MAGIC %run ../Includes/module-2/setup-lesson-2.07-silver-setup
 
 # COMMAND ----------
 
@@ -37,23 +37,16 @@
 
 # COMMAND ----------
 
-spark.sql("DROP TABLE IF EXISTS heart_rate_silver")
-
-dbutils.fs.rm(Paths.silverRecordingsTable, True)
-dbutils.fs.rm(Paths.silverRecordingsCheckpoint, True)
-
-spark.sql(f"""
-CREATE TABLE IF NOT EXISTS heart_rate_silver
-(device_id LONG, time TIMESTAMP, heartrate DOUBLE, bpm_check STRING)
-USING DELTA
-LOCATION '{Paths.silverRecordingsTable}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS heart_rate_silver
+# MAGIC (device_id LONG, time TIMESTAMP, heartrate DOUBLE, bpm_check STRING)
+# MAGIC USING DELTA
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Table Constraint
-# MAGIC Add a table constraint before inserting data. Name this constraint `dateWithinRange` and make sure that the time is greater than January 1, 2017.
+# MAGIC Add a table constraint before inserting data. Name this constraint **`dateWithinRange`** and make sure that the time is greater than January 1, 2017.
 
 # COMMAND ----------
 
@@ -76,10 +69,10 @@ LOCATION '{Paths.silverRecordingsTable}'
 # MAGIC %md
 # MAGIC ## Define a Streaming Read and Transformation
 # MAGIC Use the cell below to create a streaming read that includes:
-# MAGIC 1. A filter for the topic `bpm`
+# MAGIC 1. A filter for the topic **`bpm`**
 # MAGIC 2. Logic to flatten the JSON payload and cast data to the appropriate schema
-# MAGIC 3. A `bpm_check` column to flag negative records
-# MAGIC 4. A duplicate check on `device_id` and `time` with a 30 second watermark on `time`
+# MAGIC 3. A **`bpm_check`** column to flag negative records
+# MAGIC 4. A duplicate check on **`device_id`** and **`time`** with a 30 second watermark on **`time`**
 
 # COMMAND ----------
 
@@ -97,25 +90,27 @@ streamingDF = (
 # COMMAND ----------
 
 class Upsert:
-    def __init__(self, query, update_temp="stream_updates"):
-        self.query = query
+    def __init__(self, sql_query, update_temp="stream_updates"):
+        self.sql_query = sql_query
         self.update_temp = update_temp 
         
     def upsertToDelta(self, microBatchDF, batch):
         microBatchDF.createOrReplaceTempView(self.update_temp)
-        microBatchDF._jdf.sparkSession().sql(self.query)
+        microBatchDF._jdf.sparkSession().sql(self.sql_query)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Use the cell below to define the upsert query to instantiate our class. Alternately, [consult the documentation](https://docs.databricks.com/delta/delta-update.html#upsert-into-a-table-using-merge&language-python) and try implementing this using the `DeltaTable` Python class.
+# MAGIC Use the cell below to define the upsert query to instantiate our class. 
+# MAGIC 
+# MAGIC Alternatetively, <a href="https://docs.databricks.com/delta/delta-update.html#upsert-into-a-table-using-merge&language-python" target="_blank">consult the documentation</a> and try implementing this using the **`DeltaTable`** Python class.
 
 # COMMAND ----------
 
 # TODO
-query = """<FILL-IN>"""
+sql_query = """<FILL-IN>"""
  
-streamingMerge=Upsert(query)
+streamingMerge=Upsert(sql_query)
 
 # COMMAND ----------
 
@@ -126,26 +121,29 @@ streamingMerge=Upsert(query)
 # COMMAND ----------
 
 def process_silver_heartrate():
-    (streamingDF.writeStream
-       .foreachBatch(streamingMerge.upsertToDelta)
-       .outputMode("update")
-       .option("checkpointLocation", Paths.silverRecordingsCheckpoint)
-       .trigger(once=True)
-       .start()
-       .awaitTermination())
-
+    query = (streamingDF
+        .writeStream
+        .foreachBatch(streamingMerge.upsertToDelta)
+        .outputMode("update")
+        .option("checkpointLocation", f"{DA.paths.checkpoints}/recordings.chk")
+        .trigger(once=True)
+        .start())
+    
+    query.awaitTermination()
+    
 process_silver_heartrate()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We should see the same number of total records in our silver table as the deduplicated count above, and a small percentage of these will correctly be flagged with "Negative BPM".
+# MAGIC We should see the same number of total records in our silver table as the deduplicated count from the lesson 2.5, and a small percentage of these will correctly be flagged with "Negative BPM".
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT COUNT(*)
-# MAGIC FROM heart_rate_silver
+new_total = spark.read.table("heart_rate_silver").count()
+
+print(f"Lesson #5: {731987:,}")
+print(f"New Total: {new_total:,}")
 
 # COMMAND ----------
 
@@ -158,17 +156,34 @@ process_silver_heartrate()
 
 # MAGIC %md
 # MAGIC Now land a new batch of data and propagate changes through bronze into the silver table.
+# MAGIC 
+# MAGIC <img src="https://files.training.databricks.com/images/icon_note_32.png"> The following two methods were recreated for us from previous lessons
 
 # COMMAND ----------
 
-new_batch()
+DA.data_factory.load() # Load a day's worth of data
+DA.process_bronze()    # Execute 1 iteration of the daily to bronze stream
+
+# COMMAND ----------
+
 process_silver_heartrate()
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT COUNT(*)
-# MAGIC FROM heart_rate_silver
+end_total = spark.read.table("heart_rate_silver").count()
+
+print(f"Lesson #5: {731987:,}")
+print(f"New Total: {new_total:,}")
+print(f"End Total:   {end_total:,}")
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

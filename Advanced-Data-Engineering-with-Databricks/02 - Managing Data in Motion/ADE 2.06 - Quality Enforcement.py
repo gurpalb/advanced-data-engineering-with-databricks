@@ -22,7 +22,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/silver-setup
+# MAGIC %run ../Includes/module-2/setup-lesson-2.06-silver-setup
 
 # COMMAND ----------
 
@@ -46,7 +46,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC If these exist, table constraints will be listed under the `properties` of the extended table description.
+# MAGIC If these exist, table constraints will be listed under the **`properties`** of the extended table description.
 
 # COMMAND ----------
 
@@ -66,7 +66,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC None of the existing data in our table violated this constraint. Both the name and the actual check are displayed in the `properties` field.
+# MAGIC None of the existing data in our table violated this constraint. Both the name and the actual check are displayed in the **`properties`** field.
 
 # COMMAND ----------
 
@@ -78,7 +78,7 @@
 # MAGIC %md
 # MAGIC But what happens if the conditions of the constraint aren't met?
 # MAGIC 
-# MAGIC We know that some of our devices occassionally send negative `bpm` recordings.
+# MAGIC We know that some of our devices occasionally send negative **`bpm`** recordings.
 
 # COMMAND ----------
 
@@ -93,13 +93,24 @@
 
 # COMMAND ----------
 
+import pyspark
 try:
-  spark.sql("ALTER TABLE heart_rate_silver ADD CONSTRAINT validbpm CHECK (heartrate > 0);")
-  raise Exception("Expected failure")
-  
+    spark.sql("ALTER TABLE heart_rate_silver ADD CONSTRAINT validbpm CHECK (heartrate > 0);")
+    raise Exception("Expected failure")
+
 except pyspark.sql.utils.AnalysisException as e:
-  print("Failed as expected...")
-  print(e)
+    print("Failed as expected...")
+    print(e)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Notice below how we failed to applied the constraint
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC DESCRIBE EXTENDED heart_rate_silver
 
 # COMMAND ----------
 
@@ -108,7 +119,9 @@ except pyspark.sql.utils.AnalysisException as e:
 # MAGIC 
 # MAGIC We could manually delete offending records and then set the check constraint, or set the check constraint before processing data from our bronze table.
 # MAGIC 
-# MAGIC However, if we set a check constraint and a batch of data contains records that violate it, the job will fail and we'll throw an error. If our goal is to identify bad records but keep streaming jobs running, we'll need a different solution.
+# MAGIC However, if we set a check constraint and a batch of data contains records that violate it, the job will fail and we'll throw an error.
+# MAGIC 
+# MAGIC If our goal is to identify bad records but keep streaming jobs running, we'll need a different solution.
 # MAGIC 
 # MAGIC One idea would be to quarantine invalid records.
 # MAGIC 
@@ -124,9 +137,13 @@ except pyspark.sql.utils.AnalysisException as e:
 # MAGIC %md
 # MAGIC ## Quarantining
 # MAGIC 
-# MAGIC The idea of quarantining is that bad records will be written to a separate location. This allows good data to processed efficiently, while additional logic and/or manual review of erroneous records can be defined and executed away from the main pipeline. Assuming that records can be successfully salvaged, they can be easily backfilled into the silver table they were deferred from.
+# MAGIC The idea of quarantining is that bad records will be written to a separate location.
 # MAGIC 
-# MAGIC Here, we'll implement quarantining by performing writes to two separate tables within a `foreachBatch` custom writer.
+# MAGIC This allows good data to processed efficiently, while additional logic and/or manual review of erroneous records can be defined and executed away from the main pipeline.
+# MAGIC 
+# MAGIC Assuming that records can be successfully salvaged, they can be easily backfilled into the silver table they were deferred from.
+# MAGIC 
+# MAGIC Here, we'll implement quarantining by performing writes to two separate tables within a **`foreachBatch`** custom writer.
 
 # COMMAND ----------
 
@@ -135,19 +152,15 @@ except pyspark.sql.utils.AnalysisException as e:
 
 # COMMAND ----------
 
-spark.sql("DROP TABLE IF EXISTS bpm_quarantine")
-
-spark.sql(f"""
-CREATE TABLE IF NOT EXISTS bpm_quarantine
-(device_id LONG, time TIMESTAMP, heartrate DOUBLE)
-USING DELTA
-LOCATION '{Paths.silverPath}/bpm_quarantine'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS bpm_quarantine
+# MAGIC (device_id LONG, time TIMESTAMP, heartrate DOUBLE)
+# MAGIC USING DELTA
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC With Structured Streaming operations, writing to an additional table can be accomplished within `foreachBatch` logic.
+# MAGIC With Structured Streaming operations, writing to an additional table can be accomplished within **`foreachBatch`** logic.
 # MAGIC 
 # MAGIC Below, we'll update the logic to add filters at the appropriate locations.
 # MAGIC 
@@ -155,7 +168,7 @@ LOCATION '{Paths.silverPath}/bpm_quarantine'
 
 # COMMAND ----------
 
-query = """
+sql_query = """
 MERGE INTO heart_rate_silver a
 USING stream_updates b
 ON a.device_id=b.device_id AND a.time=b.time
@@ -175,11 +188,13 @@ class Upsert:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that within the `foreachBatch` logic, the DataFrame operations are treating the data in each batch as if it's static rather than streaming. As such, we use the `write` syntax instead of `writeStream`.
+# MAGIC Note that within the **`foreachBatch`** logic, the DataFrame operations are treating the data in each batch as if it's static rather than streaming.
+# MAGIC 
+# MAGIC As such, we use the **`write`** syntax instead of **`writeStream`**.
 # MAGIC 
 # MAGIC This also means that our exactly-once guarantees are relaxed. In our example above, we have two ACID transactions:
 # MAGIC 1. Our SQL query executes to run an insert-only merge to avoid writing duplicate records to our silver table.
-# MAGIC 2. We write a microbatch of records with negative heartrates to the `bpm_quarantine` table
+# MAGIC 2. We write a microbatch of records with negative heartrates to the **`bpm_quarantine`** table
 # MAGIC 
 # MAGIC If our job fails after our first transaction completes but before the second completes, we will re-execute the full microbatch logic on job restart.
 # MAGIC 
@@ -190,13 +205,19 @@ class Upsert:
 # MAGIC %md
 # MAGIC 
 # MAGIC ## Flagging
-# MAGIC To avoid multiple writes and managing multiple tables, you may choose to implement a flagging system to warn about violations while avoiding job failures. Flagging is a low touch solution with little overhead. These flags can easily be leveraged by filters in downstream queries to isolate bad data.
+# MAGIC To avoid multiple writes and managing multiple tables, you may choose to implement a flagging system to warn about violations while avoiding job failures.
 # MAGIC 
-# MAGIC `case`/`when` logic makes this easy.
+# MAGIC Flagging is a low touch solution with little overhead.
+# MAGIC 
+# MAGIC These flags can easily be leveraged by filters in downstream queries to isolate bad data.
+# MAGIC 
+# MAGIC **`case`** / **`when`** logic makes this easy.
 # MAGIC 
 # MAGIC Run the following cell to see the compiled Spark SQL from the PySpark code below.
 
 # COMMAND ----------
+
+from pyspark.sql import functions as F
 
 F.when(F.col("heartrate") <= 0, "Negative BPM").otherwise("OK").alias("bpm_check")
 
@@ -214,6 +235,15 @@ display(spark.read
   .select("v.*", F.when(F.col("v.heartrate") <= 0, "Negative BPM").otherwise("OK").alias("bpm_check"))
   .dropDuplicates(["device_id", "time"])
 )
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

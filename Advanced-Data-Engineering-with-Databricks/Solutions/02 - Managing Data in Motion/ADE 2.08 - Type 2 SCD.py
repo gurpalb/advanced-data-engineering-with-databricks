@@ -29,45 +29,42 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/workouts-setup
+# MAGIC %run ../Includes/module-2/setup-lesson-2.08-workouts-setup
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The following cell is provided to allow for easy re-setting of this demo.
+# MAGIC ## Review workouts_silver Table
+# MAGIC A helper function was defined to land and propagate a batch of data to the **`workouts_silver`** table.
 # MAGIC 
-# MAGIC Even though we'll be overwriting our data in the target table each time we process records, we'll retain access to recent versions through Delta Lake's history. Completely dropping a table and deleting its data files will remove this history, and thus will generally not provide the desired production behavior.
+# MAGIC This table is created by 
+# MAGIC * Starting a stream against the **`bronze`** table
+# MAGIC * Filtering all records by **`topic = 'workout'`**
+# MAGIC * Deduping the data 
+# MAGIC * Merging non-matching records into **`owrkouts_silver`**
+# MAGIC 
+# MAGIC ...roughly the same strategy we used earlier to create the **`heart_rate_silver`** table
 
 # COMMAND ----------
 
-spark.sql("DROP TABLE IF EXISTS completed_workouts")
-
-dbutils.fs.rm(Paths.completedWorkouts, True)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Review `workouts_silver` Table
-# MAGIC A helper function was defined to land and propagate a batch of data to the `workouts_silver` table.
-
-# COMMAND ----------
-
-process_silver_workouts()
+DA.process_workouts_silver()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Load and preview the `workouts_silver` data.
+# MAGIC Review the **`workouts_silver`** data.
 
 # COMMAND ----------
 
-workoutDF = spark.table("workouts_silver")
+workoutDF = spark.read.table("workouts_silver")
 display(workoutDF)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC For this data, the `user_id` and `session_id` form a composite key. Each pair should eventually have 2 records present, marking the "start" and "stop" action for each workout.
+# MAGIC For this data, the **`user_id`** and **`session_id`** form a composite key. 
+# MAGIC 
+# MAGIC Each pair should eventually have 2 records present, marking the "start" and "stop" action for each workout.
 
 # COMMAND ----------
 
@@ -76,25 +73,15 @@ display(workoutDF.groupby("user_id", "session_id").count())
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Because we'll be triggering a shuffle in this notebook, we'll be explicit about how many partitions we want at the end of our shuffle.
-
-# COMMAND ----------
-
-sqlContext.setConf("spark.sql.shuffle.partitions", "4")
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## Create Completed Workouts Table
 # MAGIC 
-# MAGIC The query below matches our start and stop actions, capturing the time for each action. The `in_progress` field indicates whether or not a given workout session is ongoing.
+# MAGIC The query below matches our start and stop actions, capturing the time for each action. The **`in_progress`** field indicates whether or not a given workout session is ongoing.
 
 # COMMAND ----------
 
 def process_completed_workouts():
     spark.sql(f"""
         CREATE OR REPLACE TABLE completed_workouts 
-        LOCATION '{Paths.completedWorkouts}'
         AS (
           SELECT a.user_id, a.workout_id, a.session_id, a.start_time start_time, b.end_time end_time, a.in_progress AND (b.in_progress IS NULL) in_progress
           FROM (
@@ -114,18 +101,24 @@ process_completed_workouts()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC You can now perform a query directly on your `completed_workouts` table to check your results. Uncomment the `WHERE` clauses below to confirm various functionality of the logic above.
+# MAGIC You can now perform a query directly on your **`completed_workouts`** table to check your results. Uncomment the **`WHERE`** clauses below to confirm various functionality of the logic above.
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC 
-# MAGIC SELECT COUNT(*)
-# MAGIC FROM completed_workouts
-# MAGIC -- WHERE in_progress=true                        -- where record is still awaiting end time
-# MAGIC -- WHERE end_time IS NOT NULL                    -- where end time has been recorded
-# MAGIC -- WHERE start_time IS NULL                      -- where end time arrived before start time
-# MAGIC -- WHERE in_progress=true AND end_time IS NULL   -- confirm that no entries are valid with end_time
+total = spark.table("completed_workouts").count() # .sql("SELECT COUNT(*) FROM completed_workouts") 
+print(f"{total:2} total")
+
+total = spark.table("completed_workouts").filter("in_progress=true").count()
+print(f"{total:2} where record is still awaiting end time")
+
+total = spark.table("completed_workouts").filter("end_time IS NOT NULL").count()
+print(f"{total:2} where end time has been recorded")
+
+total = spark.table("completed_workouts").filter("start_time IS NOT NULL").count()
+print(f"{total:2} where end time arrived after start time")
+
+total = spark.table("completed_workouts").filter("in_progress=true AND end_time IS NULL").count()
+print(f"{total:2} where they are in_progress AND have an end_time")
 
 # COMMAND ----------
 
@@ -134,15 +127,24 @@ process_completed_workouts()
 
 # COMMAND ----------
 
-process_silver_workouts()
-process_completed_workouts()
+DA.data_factory.load()       # load another day's data
+DA.process_bronze()          # Update the bronze table
+DA.process_workouts_silver() # Update the workouts_silver table
+process_completed_workouts() # Update the completed_workouts table
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC 
-# MAGIC SELECT COUNT(*)
-# MAGIC FROM completed_workouts
+# MAGIC SELECT COUNT(*) FROM completed_workouts
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

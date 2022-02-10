@@ -14,10 +14,10 @@
 # MAGIC 
 # MAGIC ## Learning Objectives
 # MAGIC By the end of this lesson, you should be able to:
-# MAGIC - Apply `dropDuplicates` to streaming data
+# MAGIC - Apply **`dropDuplicates`** to streaming data
 # MAGIC - Use watermarking to manage state information
 # MAGIC - Write an insert-only merge to prevent inserting duplicate records into a Delta table
-# MAGIC - Use `foreachBatch` to perform a streaming upsert
+# MAGIC - Use **`foreachBatch`** to perform a streaming upsert
 
 # COMMAND ----------
 
@@ -27,46 +27,43 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/silver-setup
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC The following cell deletes the target silver table and checkpoint for idempotent demo execution.
-
-# COMMAND ----------
-
-spark.sql("DROP TABLE IF EXISTS heart_rate_silver")
-dbutils.fs.rm(Paths.silverRecordingsTable, True)
-dbutils.fs.rm(Paths.silverRecordingsCheckpoint, True)
+# MAGIC %run ../Includes/module-2/setup-lesson-2.05-silver-setup
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Identify Duplicate Records
 # MAGIC 
-# MAGIC Because Kafka provides at-least-once guarantees on data delivery, all Kafka consumers should be prepared to handle duplicate records. The de-duplication methods shown here can also be applied when necessary in other parts of your Delta Lake applications.
+# MAGIC Because Kafka provides at-least-once guarantees on data delivery, all Kafka consumers should be prepared to handle duplicate records.
 # MAGIC 
-# MAGIC Let's start by identifying the number of duplicate records in our `bpm` topic of the bronze table.
+# MAGIC The de-duplication methods shown here can also be applied when necessary in other parts of your Delta Lake applications.
+# MAGIC 
+# MAGIC Let's start by identifying the number of duplicate records in our **`bpm`** topic of the bronze table.
 
 # COMMAND ----------
 
-(spark.read
-  .table("bronze")
-  .filter("topic = 'bpm'")
-  .count()
-)
+total = (spark
+    .read
+    .table("bronze")
+    .filter("topic = 'bpm'")
+    .count())
+
+print(f"Total: {total:,}")
 
 # COMMAND ----------
 
-(spark.read
-  .table("bronze")
-  .filter("topic = 'bpm'")
-  .select(F.from_json(F.col("value").cast("string"), "device_id LONG, time TIMESTAMP, heartrate DOUBLE").alias("v"))
-  .select("v.*")
-  .dropDuplicates(["device_id", "time"])
-  .count()
-)
+from pyspark.sql import functions as F
+
+old_total = (spark
+    .read
+    .table("bronze")
+    .filter("topic = 'bpm'")
+    .select(F.from_json(F.col("value").cast("string"), "device_id LONG, time TIMESTAMP, heartrate DOUBLE").alias("v"))
+    .select("v.*")
+    .dropDuplicates(["device_id", "time"])
+    .count())
+
+print(f"Old Total: {old_total:,}")
 
 # COMMAND ----------
 
@@ -119,13 +116,13 @@ dedupedDF = (spark.readStream
 # MAGIC ## Insert Only Merge
 # MAGIC Delta Lake has optimized functionality for insert-only merges. This operation is ideal for de-duplication: define logic to match on unique keys, and only insert those records for keys that don't already exist.
 # MAGIC 
-# MAGIC Note that in this application, we proceed in this fashion because we know two records with the same matching keys represent the same information. If the later arriving records indicated a necessary change to an existing record, we would need to change our logic to include a `WHEN MATCHED` clause.
+# MAGIC Note that in this application, we proceed in this fashion because we know two records with the same matching keys represent the same information. If the later arriving records indicated a necessary change to an existing record, we would need to change our logic to include a **`WHEN MATCHED`** clause.
 # MAGIC 
-# MAGIC A merge into query is defined in SQL below against a view titled `stream_updates`.
+# MAGIC A merge into query is defined in SQL below against a view titled **`stream_updates`**.
 
 # COMMAND ----------
 
-query = """
+sql_query = """
   MERGE INTO heart_rate_silver a
   USING stream_updates b
   ON a.device_id=b.device_id AND a.time=b.time
@@ -135,24 +132,24 @@ query = """
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Defining a Microbatch Function for `foreachBatch`
+# MAGIC ## Defining a Microbatch Function for **`foreachBatch`**
 # MAGIC 
-# MAGIC The Spark Structured Streaming `foreachBatch` method allows users to define custom logic when writing.
+# MAGIC The Spark Structured Streaming **`foreachBatch`** method allows users to define custom logic when writing.
 # MAGIC 
-# MAGIC The logic applied during `foreachBatch` addresses the present microbatch as if it were a batch (rather than streaming) data.
+# MAGIC The logic applied during **`foreachBatch`** addresses the present microbatch as if it were a batch (rather than streaming) data.
 # MAGIC 
-# MAGIC The class defined in the following cell defines simple logic that will allow us to register any SQL `MERGE INTO` query for use in a Structured Streaming write.
+# MAGIC The class defined in the following cell defines simple logic that will allow us to register any SQL **`MERGE INTO`** query for use in a Structured Streaming write.
 
 # COMMAND ----------
 
 class Upsert:
-    def __init__(self, query, update_temp="stream_updates"):
-        self.query = query
+    def __init__(self, sql_query, update_temp="stream_updates"):
+        self.sql_query = sql_query
         self.update_temp = update_temp 
         
     def upsertToDelta(self, microBatchDF, batch):
         microBatchDF.createOrReplaceTempView(self.update_temp)
-        microBatchDF._jdf.sparkSession().sql(self.query)
+        microBatchDF._jdf.sparkSession().sql(self.sql_query)
 
 # COMMAND ----------
 
@@ -161,49 +158,59 @@ class Upsert:
 
 # COMMAND ----------
 
-spark.sql("DROP TABLE IF EXISTS heart_rate_silver")
-
-spark.sql(f"""
-  CREATE TABLE IF NOT EXISTS heart_rate_silver
-  (device_id LONG, time TIMESTAMP, heartrate DOUBLE)
-  USING DELTA
-  LOCATION '{Paths.silverRecordingsTable}'
-""")
+# MAGIC %sql
+# MAGIC DROP TABLE IF EXISTS heart_rate_silver;
+# MAGIC 
+# MAGIC CREATE TABLE IF NOT EXISTS heart_rate_silver 
+# MAGIC (device_id LONG, time TIMESTAMP, heartrate DOUBLE)
+# MAGIC USING DELTA;
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Now pass the previously define SQL query to the `Upsert` class.
+# MAGIC Now pass the previously define **`sql_query`** to the **`Upsert`** class.
 
 # COMMAND ----------
 
-streamingMerge=Upsert(query)
+streamingMerge=Upsert(sql_query)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC And then use this class in our `foreachBatch` logic.
+# MAGIC And then use this class in our **`foreachBatch`** logic.
 
 # COMMAND ----------
 
-(dedupedDF.writeStream
+query = (dedupedDF
+    .writeStream
    .foreachBatch(streamingMerge.upsertToDelta)
    .outputMode("update")
-   .option("checkpointLocation", Paths.silverRecordingsCheckpoint)
+   .option("checkpointLocation", f"{DA.paths.checkpoints}/recordings.chk")
    .trigger(once=True)
-   .start()
-   .awaitTermination(300))
+   .start())
+
+query.awaitTermination()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We can see that our number of unique entries that have been processed to the `heart_rate_silver` table matches our batch de-duplication query from above.
+# MAGIC We can see that our number of unique entries that have been processed to the **`heart_rate_silver`** table matches our batch de-duplication query from above.
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT COUNT(*)
-# MAGIC FROM heart_rate_silver
+new_total = spark.read.table("heart_rate_silver").count()
+
+print(f"Old Total: {old_total:,}")
+print(f"New Total: {new_total:,}")
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

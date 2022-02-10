@@ -10,22 +10,25 @@
 # MAGIC %md
 # MAGIC # Reset Pipelines
 # MAGIC 
-# MAGIC In this notebook, code is provided to remove all existing databases, data, and tables. Code is then provided to redeclare each table used in the architecture.
+# MAGIC In this notebook, code is provided to remove all existing databases, data, and tables. 
+# MAGIC 
+# MAGIC Code is then provided to redeclare each table used in the architecture.
 # MAGIC 
 # MAGIC This notebook should be run prior to scheduling jobs.
 
 # COMMAND ----------
 
-# MAGIC %run ../../Includes/reset-and-install-datasets
+# MAGIC %run ../../Includes/module-4/setup-lesson-4.03.1-reset-and-install-datasets
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We'll be using the `bronze_dev` table, which is a clone that already contains all of our daily data.
+# MAGIC We'll be using the **`bronze_dev`** table, which is a clone that already contains all of our daily data.
 
 # COMMAND ----------
 
-display(spark.sql(f"SHOW TABLES IN {database}"))
+# MAGIC %sql
+# MAGIC SHOW TABLES
 
 # COMMAND ----------
 
@@ -34,108 +37,138 @@ display(spark.sql(f"SHOW TABLES IN {database}"))
 
 # COMMAND ----------
 
-spark.sql(f"""
-  CREATE TABLE IF NOT EXISTS heart_rate_silver
-  (device_id LONG, time TIMESTAMP, heartrate DOUBLE, bpm_check STRING)
-  USING DELTA
-  LOCATION '{Paths.silverRecordingsTable}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS heart_rate_silver
+# MAGIC (device_id LONG, time TIMESTAMP, heartrate DOUBLE, bpm_check STRING)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/heart_rate_silver'
 
-spark.sql(f"""
-  CREATE TABLE IF NOT EXISTS workouts_silver
-  (user_id INT, workout_id INT, time TIMESTAMP, action STRING, session_id INT)
-  USING DELTA
-  LOCATION '{Paths.silverWorkoutsTable}'
-""")
+# COMMAND ----------
 
-spark.sql(f"""
-  CREATE TABLE IF NOT EXISTS users
-  (alt_id STRING, dob DATE, sex STRING, gender STRING, first_name STRING, last_name STRING, street_address STRING, city STRING, state STRING, zip INT, updated TIMESTAMP)
-  USING DELTA
-  LOCATION '{Paths.users}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS workouts_silver
+# MAGIC (user_id INT, workout_id INT, time TIMESTAMP, action STRING, session_id INT)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/workouts_silver'
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS gym_mac_logs
-    (first_timestamp DOUBLE, gym BIGINT, last_timestamp DOUBLE, mac STRING)
-    USING delta
-    LOCATION '{Paths.gymMacLogs}'
-""")
+# COMMAND ----------
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS completed_workouts
-    (user_id INT, workout_id INT, session_id INT, start_time TIMESTAMP, end_time TIMESTAMP, in_progress BOOLEAN)
-    USING DELTA
-    LOCATION '{Paths.completedWorkouts}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS users
+# MAGIC (alt_id STRING, dob DATE, sex STRING, gender STRING, first_name STRING, last_name STRING, street_address STRING, city STRING, state STRING, zip INT, updated TIMESTAMP)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/users'
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS workout_bpm
-    (user_id INT, workout_id INT, session_id INT, time TIMESTAMP, heartrate DOUBLE)
-    USING DELTA
-    LOCATION '{Paths.workoutBpm}'
-""")
+# COMMAND ----------
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS user_bins
-    (user_id BIGINT, age STRING, gender STRING, city STRING, state STRING)
-    USING DELTA
-    LOCATION '{Paths.userBins}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS gym_mac_logs
+# MAGIC (first_timestamp DOUBLE, gym BIGINT, last_timestamp DOUBLE, mac STRING)
+# MAGIC USING delta
+# MAGIC LOCATION '${da.paths.user_db}/gym_mac_logs'
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS registered_users
-    (device_id long, mac_address string, registration_timestamp double, user_id long)
-    USING DELTA 
-    LOCATION '{Paths.registeredUsers}'
-""")
+# COMMAND ----------
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS user_lookup
-    (alt_id string, device_id long, mac_address string, user_id long)
-    USING DELTA 
-    LOCATION '{Paths.userLookup}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS completed_workouts
+# MAGIC (user_id INT, workout_id INT, session_id INT, start_time TIMESTAMP, end_time TIMESTAMP, in_progress BOOLEAN)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/completed_workouts'
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS workout_bpm_summary
-    (workout_id INT, session_id INT, user_id BIGINT, age STRING, gender STRING, city STRING, state STRING, min_bpm DOUBLE, avg_bpm DOUBLE, max_bpm DOUBLE, num_recordings BIGINT)
-    USING DELTA 
-    LOCATION '{Paths.workoutBpmSummary}'
-""")
+# COMMAND ----------
 
-spark.sql(f"""
-    CREATE VIEW IF NOT EXISTS gym_user_stats AS (
-    SELECT gym, mac_address, date, workouts, (last_timestamp - first_timestamp)/60 minutes_in_gym, (to_unix_timestamp(end_workout) - to_unix_timestamp(start_workout))/60 minutes_exercising
-    FROM gym_mac_logs c
-    INNER JOIN (
-      SELECT b.mac_address, to_date(start_time) date, collect_set(workout_id) workouts, min(start_time) start_workout, max(end_time) end_workout
-          FROM completed_workouts a
-          INNER JOIN user_lookup b
-          ON a.user_id = b.user_id
-          GROUP BY mac_address, to_date(start_time)
-      ) d
-      ON c.mac = d.mac_address AND to_date(CAST(c.first_timestamp AS timestamp)) = d.date)
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS workout_bpm
+# MAGIC (user_id INT, workout_id INT, session_id INT, time TIMESTAMP, heartrate DOUBLE)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/workout_bpm'
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS user_bins
+# MAGIC (user_id BIGINT, age STRING, gender STRING, city STRING, state STRING)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/user_bins'
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS registered_users
+# MAGIC (device_id long, mac_address string, registration_timestamp double, user_id long)
+# MAGIC USING DELTA 
+# MAGIC LOCATION '${da.paths.user_db}/registered_users'
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS user_lookup
+# MAGIC (alt_id string, device_id long, mac_address string, user_id long)
+# MAGIC USING DELTA 
+# MAGIC LOCATION '${da.paths.user_db}/user_lookup'
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS workout_bpm_summary
+# MAGIC (workout_id INT, session_id INT, user_id BIGINT, age STRING, gender STRING, city STRING, state STRING, min_bpm DOUBLE, avg_bpm DOUBLE, max_bpm DOUBLE, num_recordings BIGINT)
+# MAGIC USING DELTA 
+# MAGIC LOCATION '${da.paths.user_db}/workout_bpm_summary'
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE VIEW IF NOT EXISTS gym_user_stats AS (
+# MAGIC SELECT gym, mac_address, date, workouts, 
+# MAGIC        (last_timestamp - first_timestamp)/60 AS minutes_in_gym, 
+# MAGIC        (to_unix_timestamp(end_workout) - to_unix_timestamp(start_workout))/60 AS minutes_exercising
+# MAGIC FROM gym_mac_logs c
+# MAGIC INNER JOIN (
+# MAGIC   SELECT b.mac_address, 
+# MAGIC          to_date(start_time) AS date, 
+# MAGIC          collect_set(workout_id) AS workouts, 
+# MAGIC          min(start_time) AS start_workout, 
+# MAGIC          max(end_time) AS end_workout
+# MAGIC   FROM completed_workouts a
+# MAGIC   INNER JOIN user_lookup b
+# MAGIC   ON a.user_id = b.user_id
+# MAGIC   GROUP BY mac_address, to_date(start_time)
+# MAGIC ) d
+# MAGIC ON c.mac = d.mac_address AND 
+# MAGIC    to_date(CAST(c.first_timestamp AS timestamp)) = d.date)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC For this demo, we're only focused on processing those data coming through our multiplex bronze table, so we'll bypass the incremental loading for the `gym_mac_logs` and `user_lookup` tables and recreate the final results with a direct read of all files.
+# MAGIC For this demo, we're only focused on processing those data coming through our multiplex bronze table, so we'll bypass the incremental loading for the **`gym_mac_logs`** and **`user_lookup`** tables and recreate the final results with a direct read of all files.
 
 # COMMAND ----------
 
-spark.read.json(f"{URI}/gym-logs/").write.option("path", Paths.gymMacLogs).mode("overwrite").saveAsTable("gym_mac_logs")
+(spark.read
+      .json(f"{DA.data_source_uri}/gym-logs")
+      .write
+      .mode("overwrite")
+      .saveAsTable("gym_mac_logs"))
 
 (spark.read
-    .format("json")
-    .schema("device_id long, mac_address string, registration_timestamp double, user_id long")
-    .load(f"{URI}/user-reg")
-    .selectExpr(f"sha2(concat(user_id,'BEANS'), 256) AS alt_id", "device_id", "mac_address", "user_id")
-    .write
-    .option("path", Paths.userLookup)
-    .mode("overwrite")
-    .saveAsTable("user_lookup"))
+      .format("json")
+      .schema("device_id long, mac_address string, registration_timestamp double, user_id long")
+      .load(f"{DA.data_source_uri}/user-reg")
+      .selectExpr(f"sha2(concat(user_id,'BEANS'), 256) AS alt_id", "device_id", "mac_address", "user_id")
+      .write
+      .mode("overwrite")
+      .saveAsTable("user_lookup"))
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SHOW TABLES
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Unlike other lessons, we will **NOT** be be executing our **`DA.cleanup()`** command<br/>
+# MAGIC as we want these assets to persist through all the notebooks in this demo.
 
 # COMMAND ----------
 

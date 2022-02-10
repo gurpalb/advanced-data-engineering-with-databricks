@@ -27,7 +27,7 @@
 # MAGIC 
 # MAGIC <img src="https://files.training.databricks.com/images/ade/ADE_arch_bronze.png" width="60%" />
 # MAGIC 
-# MAGIC **NOTE**: Details on additional configurations for connecting to Kafka are available [here](https://docs.databricks.com/spark/latest/structured-streaming/kafka.html).
+# MAGIC **NOTE**: Details on additional configurations for connecting to Kafka are available <a href="https://docs.databricks.com/spark/latest/structured-streaming/kafka.html" target="_blank">here</a>.
 # MAGIC 
 # MAGIC 
 # MAGIC ## Learning Objectives
@@ -36,7 +36,7 @@
 # MAGIC - Describe a multiplex design
 # MAGIC - Apply Auto Loader to incrementally process records
 # MAGIC - Configure trigger intervals
-# MAGIC - Use `trigger once` logic to execute triggered incremental loading of data.
+# MAGIC - Use "trigger once" logic to execute triggered incremental loading of data.
 
 # COMMAND ----------
 
@@ -45,18 +45,18 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/bronze-setup
+# MAGIC %run ../Includes/module-2/setup-lesson-2.03-bronze-setup
+
+# COMMAND ----------
+
+# MAGIC %run ../Includes/module-2/setup-lesson-2.03-bronze-setup
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The `Paths` variable will be declared in each notebook for easy file management.
+# MAGIC The **`DA.paths`** variable will be declared in each notebook for easy file management as seen above.
 # MAGIC 
 # MAGIC **NOTE**: All records are being stored on the DBFS root for this training example. Setting up separate databases and storage accounts for different layers of data is preferred in both development and production.
-
-# COMMAND ----------
-
-Paths
 
 # COMMAND ----------
 
@@ -70,17 +70,17 @@ Paths
 # COMMAND ----------
 
 # ANSWER
-spark.read.json(Paths.sourceDaily).printSchema()
+spark.read.json(DA.paths.source_daily).printSchema()
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Prepare Data to Join with Date Lookup Table
-# MAGIC The initialization script has loaded a `date_lookup` table. This table has a number of pre-computed date values. Note that additional fields indicating holidays or financial quarters might often be added to this table for later data enrichment.
+# MAGIC The initialization script has loaded a **`date_lookup`** table. This table has a number of pre-computed date values. Note that additional fields indicating holidays or financial quarters might often be added to this table for later data enrichment.
 # MAGIC 
-# MAGIC Pre-computing and storing these values is especially important based on our desire to partition our data by year and week, using the string pattern `YYYY-WW`. While Spark has both `year` and `weekofyear` functions built in, the `weekofyear` function may not provide expected behavior for dates falling in the last week of December or [first week of January](https://spark.apache.org/docs/2.3.0/api/sql/#weekofyear), as it defines week 1 as the first week with >3 days.
+# MAGIC Pre-computing and storing these values is especially important based on our desire to partition our data by year and week, using the string pattern **`YYYY-WW`**. While Spark has both **`year`** and **`weekofyear`** functions built in, the **`weekofyear`** function may not provide expected behavior for dates falling in the last week of December or <a href="https://spark.apache.org/docs/2.3.0/api/sql/#weekofyear" target="_blank">first week of January</a>, as it defines week 1 as the first week with >3 days.
 # MAGIC 
-# MAGIC While this edge case is esoteric to Spark, a `date_lookup` table that will be used across the organization is important for making sure that data is consistently enriched with date-related details.
+# MAGIC While this edge case is esoteric to Spark, a **`date_lookup`** table that will be used across the organization is important for making sure that data is consistently enriched with date-related details.
 
 # COMMAND ----------
 
@@ -91,9 +91,9 @@ spark.read.json(Paths.sourceDaily).printSchema()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The `date_lookup` table is very small (here we only include date info for 3 years); manually caching the subset of this table we'll be using before proceeding will make sure it's readily available in memory, although the Delta Cache will automatically cache and reuse this data anyway.
+# MAGIC The **`date_lookup`** table is very small (here we only include date info for 3 years); manually caching the subset of this table we'll be using before proceeding will make sure it's readily available in memory, although the Delta Cache will automatically cache and reuse this data anyway.
 # MAGIC 
-# MAGIC The current table being implemented requires that we capture the accurate `week_part` for each date.
+# MAGIC The current table being implemented requires that we capture the accurate **`week_part`** for each date.
 # MAGIC 
 # MAGIC The cell below loads and caches these two fields.
 
@@ -105,12 +105,14 @@ dateLookup.cache().count()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Working with the JSON data stored in the `Paths.sourceDaily` location, transform the `timestamp` column as necessary to match to join it with the `date` column.
+# MAGIC Working with the JSON data stored in the **`DA.paths.source_daily`** location, transform the **`timestamp`** column as necessary to match to join it with the **`date`** column.
 
 # COMMAND ----------
 
 # ANSWER
-jsonDF = spark.read.json(Paths.sourceDaily)
+from pyspark.sql import functions as F
+
+jsonDF = spark.read.json(DA.paths.source_daily)
 
 joinedDF = (jsonDF.join(F.broadcast(dateLookup),
     F.to_date((F.col("timestamp")/1000).cast("timestamp")) == F.col("date"),
@@ -129,7 +131,7 @@ display(joinedDF)
 # MAGIC - Define the schema
 # MAGIC - Configure Auto Loader to use the JSON format and specified schema
 # MAGIC - Perform a broadcast join with the date_lookup table
-# MAGIC - Partition the data by the `topic` and `week_part` fields
+# MAGIC - Partition the data by the **`topic`** and **`week_part`** fields
 
 # COMMAND ----------
 
@@ -141,12 +143,11 @@ def process_bronze():
         .format("cloudFiles")
         .schema(schema)
         .option("cloudFiles.format", "json")
-        .load(Paths.sourceDaily)
+        .load(DA.paths.source_daily)
         .join(F.broadcast(dateLookup), F.to_date((F.col("timestamp")/1000).cast("timestamp")) == F.col("date"), "left")
         .writeStream
-        .option("checkpointLocation", Paths.bronzeCheckpoint)
+        .option("checkpointLocation", f"{DA.paths.checkpoints}/bronze.chk")
         .partitionBy("topic", "week_part")
-        .option("path", Paths.bronzeTable)
         .trigger(once=True)
         .table("bronze")
         .awaitTermination())
@@ -183,13 +184,16 @@ process_bronze()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The `Raw.arrival()` code below is a helper class to land new data in the source directory.
+# MAGIC The **`DA.data_factory.load()`** code below is a helper class to land new data in the source directory.
 # MAGIC 
 # MAGIC Executing the following cell should successfully process a new batch.
 
 # COMMAND ----------
 
-Raw.arrival()
+DA.data_factory.load()
+
+# COMMAND ----------
+
 process_bronze()
 
 # COMMAND ----------
@@ -201,6 +205,15 @@ process_bronze()
 
 # MAGIC %sql
 # MAGIC SELECT COUNT(*) FROM bronze
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

@@ -23,36 +23,58 @@
 # MAGIC %md
 # MAGIC ## Scheduling this Notebook
 # MAGIC 
-# MAGIC This notebook is designed to be scheduled against a jobs cluster, but can use an interactive cluster to avoid cluster start up times. Note that executing additional code against an all purpose cluster will result in significant query slowdown.
+# MAGIC This notebook is designed to be scheduled against a jobs cluster, but can use an interactive cluster to avoid cluster start up times. 
 # MAGIC 
-# MAGIC Because shuffles will be triggered by some workloads, setting `sql.shuffle.partitions` equal to the number of executor cores available can help to improve throughput. Note that this value cannot be changed between runs without creating a new checkpoint for each stream.
+# MAGIC Note that executing additional code against an all purpose cluster will result in significant query slowdown.
+# MAGIC 
+# MAGIC The recomended cluster configuration for this demo includes:
+# MAGIC * The latest LTS version of the DBR
+# MAGIC * A single-node cluster
+# MAGIC * A single VM with 32 cores
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC ## Shuffle Partitions
+# MAGIC Because shuffles will be triggered by some workloads we need to manage the **`spark.sql.shuffle.partitions`**.
+# MAGIC 
+# MAGIC This needs to be sized appropriately for the cluster and size of the size of our datasets keeping in mind some of the automations provided by Databricks and AQE.
+# MAGIC 
+# MAGIC Our datasets are small enough that we can forgo this complex topic and simply set the shuffle partitions (**`spark.sql.shuffle.partitions`**) equal to the number of executor cores (**`sc.defaultParallelism`**) in attempt to maximize the usage of our cluster.
+# MAGIC 
+# MAGIC <img src="https://files.training.databricks.com/images/icon_note_24.png"> Note that this value cannot be changed between runs without creating a new checkpoint for each stream.
+
+# COMMAND ----------
+
+print(f"Executor cores: {sc.defaultParallelism}")
+spark.conf.set("spark.sql.shuffle.partitions", sc.defaultParallelism)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Widgets
 # MAGIC 
-# MAGIC Jobs utilize the `widgets` submodule to pass parameters to notebooks.
+# MAGIC Jobs utilize the **`widgets`** submodule to pass parameters to notebooks.
 # MAGIC 
-# MAGIC The `widgets` submodule includes a number of methods to allow interactive variables to be set while working with notebooks in the workspace with an interactive cluster. To learn more about this functionality, refer to the [Databricks documentation](https://docs.databricks.com/notebooks/widgets.html#widgets).
+# MAGIC The **`widgets`** submodule includes a number of methods to allow interactive variables to be set while working with notebooks in the workspace with an interactive cluster. To learn more about this functionality, refer to the <a href="https://docs.databricks.com/notebooks/widgets.html#widgets" target="_blank">Databricks documentation</a>.
 # MAGIC 
 # MAGIC This notebook will focus on only two of these methods, emphasizing their utility when running a notebook as a job:
-# MAGIC 1. `dbutils.widgets.text` accepts a parameter name and a default value. This is the method through which external values can be passed into scheduled notebooks.
-# MAGIC 1. `dbutils.widgets.get` accepts a parameter name and retrieves the associated value from the widget with that parameter name.
+# MAGIC 1. **`dbutils.widgets.text`** accepts a parameter name and a default value. This is the method through which external values can be passed into scheduled notebooks.
+# MAGIC 1. **`dbutils.widgets.get`** accepts a parameter name and retrieves the associated value from the widget with that parameter name.
 # MAGIC 
-# MAGIC Taken together, `dbutils.widgets.text` allows the passing of external values and `dbutils.widgets.get` allows those values to be referenced.
+# MAGIC Taken together, **`dbutils.widgets.text`** allows the passing of external values and **`dbutils.widgets.get`** allows those values to be referenced.
 # MAGIC 
-# MAGIC **NOTE**: To run this notebook in triggered batch mode, pass key `once` and value `True` as a parameter to your scheduled job.
+# MAGIC **NOTE**: To run this notebook in triggered batch mode, pass key **`once`** and value **`True`** as a parameter to your scheduled job.
 
 # COMMAND ----------
 
-dbutils.widgets.text("once", "False")
+dbutils.widgets.dropdown("once", "False", ["True","False"], "Only Once")
 once = eval(dbutils.widgets.get("once"))
 print(f"Once: {once}")
 
 # COMMAND ----------
 
-# MAGIC %md
+# MAGIC %md <trx-123>
 # MAGIC # Use RocksDB for State Store
 # MAGIC 
 # MAGIC RocksDB efficiently managed state in the native memory and local SSD of the cluster, while also automatically saving changes to the provided checkpoint directory for each stream. While not necessary for all Structured Streaming jobs, it can be useful for queries with a large amount of state information being managed.
@@ -69,22 +91,26 @@ spark.conf.set("spark.sql.streaming.stateStore.providerClass", "com.databricks.s
 # MAGIC ## Setup
 # MAGIC The following cell loads variables and paths used throughout this notebook.
 # MAGIC 
-# MAGIC Note that the `Reset Pipelines` notebook included here should be run before scheduling jobs to ensure data is in a fresh state for testing.
+# MAGIC Note that the [Reset Pipelines]($./1 - Reset Pipelines) notebook included here should be run before scheduling jobs to ensure data is in a fresh state for testing.
 
 # COMMAND ----------
 
-# MAGIC %run ../../Includes/ade-setup
+# MAGIC %run ../../Includes/module-4/setup-lesson-4.03.2-ade-setup
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Custom Streaming Query Listener
 # MAGIC 
-# MAGIC Some production streaming applications require real-time monitoring of streaming query progress. Generally, these results will be streamed backed into a pub/sub system for real-time dashboarding. Here, we'll append the output logs to a JSON directory that we can later read in with Auto Loader.
+# MAGIC Some production streaming applications require real-time monitoring of streaming query progress. 
+# MAGIC 
+# MAGIC Generally, these results will be streamed backed into a pub/sub system for real-time dashboarding. 
+# MAGIC 
+# MAGIC Here, we'll append the output logs to a JSON directory that we can later read in with Auto Loader.
 
 # COMMAND ----------
 
-# MAGIC %run ../../Includes/StreamingQueryListener
+# MAGIC %run ../../Includes/module-4/StreamingQueryListener
 
 # COMMAND ----------
 
@@ -111,6 +137,8 @@ dateLookup.cache().count()
 # COMMAND ----------
 
 def process_bronze(source, table_name, checkpoint, once=False, processing_time="5 seconds"):
+    from pyspark.sql import functions as F
+    
     schema = "key BINARY, value BINARY, topic STRING, partition LONG, offset LONG, timestamp LONG"
     
     data_stream_writer = (spark.readStream
@@ -130,13 +158,11 @@ def process_bronze(source, table_name, checkpoint, once=False, processing_time="
         (data_stream_writer
             .trigger(once=True)
             .table(table_name)
-            .awaitTermination(60)
-        )
+            .awaitTermination(60))
     else:
         (data_stream_writer
             .trigger(processingTime=processing_time)
-            .table(table_name)
-        )
+            .table(table_name))
 
 # COMMAND ----------
 
@@ -164,14 +190,14 @@ def process_bronze(source, table_name, checkpoint, once=False, processing_time="
 # COMMAND ----------
 
 spark.sparkContext.setLocalProperty("spark.scheduler.pool", "bronze")
-process_bronze(Paths.source30m, "bronze_dev", Paths.bronzeCheckpoint, once=once)
+process_bronze(DA.paths.producer_30m, "bronze_dev", f"{DA.paths.checkpoints}/bronze", once=once)
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC # Parse Silver Tables
 # MAGIC 
-# MAGIC In the next cell, we define a Python class to handle the queries that result in our `heart_rate_silver` and `workouts_silver`.
+# MAGIC In the next cell, we define a Python class to handle the queries that result in our **`heart_rate_silver`** and **`workouts_silver`**.
 
 # COMMAND ----------
 
@@ -188,6 +214,7 @@ class Upsert:
 
 # heart_rate_silver
 def heart_rate_silver(source_table="bronze", once=False, processing_time="10 seconds"):
+    from pyspark.sql import functions as F
     
     query = """
         MERGE INTO heart_rate_silver a
@@ -209,7 +236,7 @@ def heart_rate_silver(source_table="bronze", once=False, processing_time="10 sec
         .writeStream
         .foreachBatch(streamingMerge.upsertToDelta)
         .outputMode("update")
-        .option("checkpointLocation", Paths.silverRecordingsCheckpoint)
+        .option("checkpointLocation", f"{DA.paths.checkpoints}/heart_rate_silver")
         .queryName("heart_rate_silver")
     )
   
@@ -229,6 +256,7 @@ def heart_rate_silver(source_table="bronze", once=False, processing_time="10 sec
 
 # workouts_silver
 def workouts_silver(source_table="bronze", once=False, processing_time="15 seconds"):
+    from pyspark.sql import functions as F
     
     query = """
         MERGE INTO workouts_silver a
@@ -251,7 +279,7 @@ def workouts_silver(source_table="bronze", once=False, processing_time="15 secon
         .writeStream
         .foreachBatch(streamingMerge.upsertToDelta)
         .outputMode("update")
-        .option("checkpointLocation", Paths.silverWorkoutsCheckpoint)
+        .option("checkpointLocation", f"{DA.paths.checkpoints}/workouts_silver")
         .queryName("workouts_silver")
 
     )
@@ -271,12 +299,12 @@ def workouts_silver(source_table="bronze", once=False, processing_time="15 secon
 # COMMAND ----------
 
 # users
-from pyspark.sql.window import Window
-
-window = Window.partitionBy("alt_id").orderBy(F.col("updated").desc())
 
 def batch_rank_upsert(microBatchDF, batchId):
-    appId = "batch_rank_upsert"
+    from pyspark.sql.window import Window
+    from pyspark.sql import functions as F
+
+    window = Window.partitionBy("alt_id").orderBy(F.col("updated").desc())
     
     (microBatchDF
         .filter(F.col("update_type").isin(["new", "update"]))
@@ -294,6 +322,7 @@ def batch_rank_upsert(microBatchDF, batchId):
     """)
 
 def users_silver(source_table="bronze", once=False, processing_time="30 seconds"):
+    from pyspark.sql import functions as F
 
     schema = """
         user_id LONG, 
@@ -327,7 +356,7 @@ def users_silver(source_table="bronze", once=False, processing_time="30 seconds"
         .writeStream
         .foreachBatch(batch_rank_upsert)
         .outputMode("update")
-        .option("checkpointLocation", Paths.usersCheckpointPath)
+        .option("checkpointLocation", f"{DA.paths.checkpoints}/users")
         .queryName("users")
     )
     
@@ -349,6 +378,41 @@ spark.sparkContext.setLocalProperty("spark.scheduler.pool", "silver_parsed")
 heart_rate_silver(source_table="bronze_dev", once=once)
 workouts_silver(source_table="bronze_dev", once=once)
 users_silver(source_table="bronze_dev", once=once)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Loading Data
+# MAGIC A close observation will reveal that no data is actually being processed.
+# MAGIC 
+# MAGIC This is because the source directory passed to **`process_bronze()`** is empty.
+# MAGIC 
+# MAGIC To load some data, and watch this stream in action, open [99 - Data Factory]($./99 - Data Factory) which, when executed, will slowly feed this stream.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Unlike other lessons, we will **NOT** be be executing our **`DA.cleanup()`** command<br/>
+# MAGIC as we want these assets to persist through all the notebooks in this demo.
+# MAGIC 
+# MAGIC However, we don't want to leave this demo running forever so we will stop all streams after 5 minutes.<br/>
+# MAGIC This is approximately the same amount of time that our Data Factory will run from start to finish.
+
+# COMMAND ----------
+
+import time
+time.sleep(5*60)
+
+# COMMAND ----------
+
+# MAGIC %md And now that the five minutes have passed, we will stop all streams.
+
+# COMMAND ----------
+
+for stream in spark.streams.active:
+    print(f"Stopping the stream {stream.name}")
+    stream.stop()
+    stream.awaitTermination()
 
 # COMMAND ----------
 

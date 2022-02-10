@@ -23,19 +23,21 @@
 # MAGIC 
 # MAGIC You may choose to manually trigger this job, or set it to a schedule to update each minute.
 # MAGIC 
-# MAGIC You can click `Run Now` if desired, or just wait until the top of the next minute for this to trigger automatically.
+# MAGIC You can click **`Run Now`** if desired, or just wait until the top of the next minute for this to trigger automatically.
 # MAGIC 
 # MAGIC ### Best Practice: Warm Pools
 # MAGIC 
-# MAGIC During this demo, we're making the conscious choice to take advantage of already-on compute to reduce friction and complexity for getting our code running. In production, jobs like this one (short duration and triggered frequently) should be scheduled against [warm pools](https://docs.microsoft.com/en-us/azure/databricks/clusters/instance-pools/).
+# MAGIC During this demo, we're making the conscious choice to take advantage of already-on compute to reduce friction and complexity for getting our code running. In production, jobs like this one (short duration and triggered frequently) should be scheduled against <a href="https://docs.microsoft.com/en-us/azure/databricks/clusters/instance-pools/" target="_blank">warm pools</a>.
 # MAGIC 
 # MAGIC Pools provide you the flexibility of having compute resources ready for scheduling jobs against while removing DBU charges for idle compute. DBUs billed are for jobs rather than all-purpose workloads (which is a lower cost). Additionally, using pools instead of interactive clusters eliminates the potential for resource contention between jobs sharing a single cluster or between scheduled jobs and interactive queries.
 
 # COMMAND ----------
 
-# MAGIC %run ../../Includes/ade-setup
+# MAGIC %run ../../Includes/module-4/setup-lesson-4.03.3-ade-setup
 
 # COMMAND ----------
+
+from pyspark.sql import functions as F
 
 # user_bins
 def age_bins(dob_col):
@@ -56,10 +58,9 @@ lookupDF = spark.table("user_lookup").select("alt_id", "user_id")
 binsDF = spark.table("users").join(lookupDF, ["alt_id"], "left").select("user_id", age_bins(F.col("dob")),"gender", "city", "state")
 
 (binsDF.write
-    .format("delta")
-    .option("path", Paths.userBins)
-    .mode("overwrite")
-    .saveAsTable("user_bins"))
+       .format("delta")
+       .mode("overwrite")
+       .saveAsTable("user_bins"))
 
 # COMMAND ----------
 
@@ -80,8 +81,8 @@ spark.sql("""
 """)
 
 (spark.table("TEMP_completed_workouts").write
-    .mode("overwrite")
-    .saveAsTable("completed_workouts"))
+      .mode("overwrite")
+      .saveAsTable("completed_workouts"))
 
 # COMMAND ----------
 
@@ -99,34 +100,42 @@ spark.sql("""
   ON c.device_id = d.device_id AND time BETWEEN start_time AND end_time
   WHERE c.bpm_check = 'OK'""").createOrReplaceTempView("TEMP_workout_bpm")
 
-(spark.table("TEMP_workout_bpm")
-    .writeStream
-    .outputMode("append")
-    .option("checkpointLocation", Paths.workoutBpmCheckpoint)
-    .trigger(once=True)
-    .table("workout_bpm")
-    .awaitTermination())
+query = (spark.table("TEMP_workout_bpm")
+              .writeStream
+              .outputMode("append")
+              .option("checkpointLocation", f"{DA.paths.checkpoints}/workout_bpm")
+              .trigger(once=True)
+              .table("workout_bpm"))
+
+query.awaitTermination()
 
 # COMMAND ----------
 
 # workout_bpm_summary
 spark.readStream.table("workout_bpm").createOrReplaceTempView("TEMP_workout_bpm")
 
-(spark.sql("""
-    SELECT workout_id, session_id, a.user_id, age, gender, city, state, min_bpm, avg_bpm, max_bpm, num_recordings
-    FROM user_bins a
-    INNER JOIN
-      (SELECT user_id, workout_id, session_id, MIN(heartrate) min_bpm, MEAN(heartrate) avg_bpm, MAX(heartrate) max_bpm, COUNT(heartrate) num_recordings
-      FROM TEMP_workout_bpm
-      GROUP BY user_id, workout_id, session_id) b
-    ON a.user_id = b.user_id"""
-    ).writeStream
-        .option("path", Paths.workoutBpmSummary)
-        .option("checkpointLocation", Paths.workoutBpmSummaryCheckpoint)
-        .outputMode("complete")
-        .trigger(once=True)
-        .table("workout_bpm_summary")
-    ).awaitTermination()
+df = (spark.sql("""
+SELECT workout_id, session_id, a.user_id, age, gender, city, state, min_bpm, avg_bpm, max_bpm, num_recordings
+FROM user_bins a
+INNER JOIN
+  (SELECT user_id, workout_id, session_id, MIN(heartrate) min_bpm, MEAN(heartrate) avg_bpm, MAX(heartrate) max_bpm, COUNT(heartrate) num_recordings
+  FROM TEMP_workout_bpm
+  GROUP BY user_id, workout_id, session_id) b
+ON a.user_id = b.user_id"""))
+
+query = (df.writeStream
+           .option("checkpointLocation", f"{DA.paths.checkpoints}/workout_bpm_summary")
+           .outputMode("complete")
+           .trigger(once=True)
+           .table("workout_bpm_summary"))
+
+query.awaitTermination()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC Unlike other lessons, we will **NOT** be be executing our **`DA.cleanup()`** command<br/>
+# MAGIC as we want these assets to persist through all the notebooks in this demo.
 
 # COMMAND ----------
 

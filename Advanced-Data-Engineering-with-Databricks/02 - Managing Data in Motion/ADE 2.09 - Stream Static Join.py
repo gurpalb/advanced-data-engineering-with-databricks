@@ -12,7 +12,7 @@
 # MAGIC 
 # MAGIC In this lesson, you'll join streaming heart rate data with the completed workouts table.
 # MAGIC 
-# MAGIC We'll be creating the table `workout_bpm` in our architectural diagram.
+# MAGIC We'll be creating the table **`workout_bpm`** in our architectural diagram.
 # MAGIC 
 # MAGIC This pattern will take advantage of Delta Lake's ability to guarantee that the latest version of a table is returned each time it is queried.
 # MAGIC 
@@ -30,25 +30,16 @@
 # MAGIC %md
 # MAGIC ## Setup
 # MAGIC 
-# MAGIC **NOTE**: The setup script includes logic to define a `user_lookup` table required for the join below.
+# MAGIC **NOTE**: The setup script includes logic to define a **`user_lookup`** table required for the join below.
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/join-setup
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC A helper function has been defined to process a new batch of data to the source tables used in this lesson. (Note: this may take around 2 minutes.)
-
-# COMMAND ----------
-
-process_join_sources()
+# MAGIC %run ../Includes/module-2/setup-lesson-2.09-join-setup
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Set up your streaming temp view. Note that we will only be streaming from **one** of our tables. The `completed_workouts` table is no longer streamable as it breaks the requirement of an ever-appending source for Structured Streaming. However, when performing a stream-static join with a Delta table, each batch will confirm that the newest version of the static Delta table is being used.
+# MAGIC Set up your streaming temp view. Note that we will only be streaming from **one** of our tables. The **`completed_workouts`** table is no longer streamable as it breaks the requirement of an ever-appending source for Structured Streaming. However, when performing a stream-static join with a Delta table, each batch will confirm that the newest version of the static Delta table is being used.
 
 # COMMAND ----------
 
@@ -59,9 +50,9 @@ spark.readStream.table("heart_rate_silver").createOrReplaceTempView("TEMP_heart_
 # MAGIC %md
 # MAGIC ## Perform Stream-Static Join to Align Workouts to Heart Rate Recordings
 # MAGIC 
-# MAGIC Below we'll configure our query to join our stream to our `completed_workouts` table.
+# MAGIC Below we'll configure our query to join our stream to our **`completed_workouts`** table.
 # MAGIC 
-# MAGIC Note that our heart rate recordings only have `device_id`, while our workouts use `user_id` as the unique identifier. We'll need to use our `user_lookup` table to match these values. Because all tables are Delta Lake tables, we're guaranteed to get the latest version of each table during each microbatch transaction.
+# MAGIC Note that our heart rate recordings only have **`device_id`**, while our workouts use **`user_id`** as the unique identifier. We'll need to use our **`user_lookup`** table to match these values. Because all tables are Delta Lake tables, we're guaranteed to get the latest version of each table during each microbatch transaction.
 # MAGIC 
 # MAGIC Importantly, our devices occasionally send messages with negative recordings, which represent a potential error in the recorded values. We'll need to define predicate conditions to ensure that only positive recordings are processed. 
 
@@ -81,7 +72,7 @@ spark.sql("""
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that the streaming portion of the join drives this join process. As currently implemented, this means that records from the `heart_rate_silver` table will only appear in our results table if a matching record has been written to the `completed_workouts` table prior to processing this query.
+# MAGIC Note that the streaming portion of the join drives this join process. As currently implemented, this means that records from the **`heart_rate_silver`** table will only appear in our results table if a matching record has been written to the **`completed_workouts`** table prior to processing this query.
 # MAGIC 
 # MAGIC Stream-static joins are not stateful, meaning that we cannot configure our query to wait for records to appear in the right side of the join prior to calculating the results. When leveraging stream-static joins, make sure to be aware of potential limitations for unmatched records. (Note that a separate batch job could be configured to find and insert records that were missed during incremental execution).
 
@@ -90,7 +81,7 @@ spark.sql("""
 # MAGIC %md
 # MAGIC ### Write Stream in Append Mode
 # MAGIC 
-# MAGIC Below, we'll use our streaming temp view from above to insert new values into our `workout_bpm` table.
+# MAGIC Below, we'll use our streaming temp view from above to insert new values into our **`workout_bpm`** table.
 
 # COMMAND ----------
 
@@ -99,8 +90,7 @@ def process_workout_bpm():
         .writeStream
         .format("delta")
         .outputMode("append")
-        .option("checkpointLocation", Paths.workoutBpmCheckpoint)
-        .option("path", Paths.workoutBpm)
+        .option("checkpointLocation", f"{DA.paths.checkpoints}/workout_bpm.chk")
         .trigger(once=True)
         .table("workout_bpm")
         .awaitTermination())
@@ -132,7 +122,12 @@ process_workout_bpm()
 
 # COMMAND ----------
 
-process_join_sources()
+DA.data_factory.load()          # Load one new day for DA.paths.source_daily
+DA.process_bronze()             # Process through the bronze table
+DA.process_heart_rate_silver()  # Process the heart_rate_silver table
+DA.process_workouts_silver()    # Process the workouts_silver table
+DA.process_completed_workouts() # Process the completed_workouts table
+
 process_workout_bpm()
 
 # COMMAND ----------
@@ -141,6 +136,15 @@ process_workout_bpm()
 # MAGIC 
 # MAGIC SELECT COUNT(*)
 # MAGIC FROM workout_bpm
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

@@ -9,9 +9,9 @@
 
 # MAGIC %md # Project Information
 # MAGIC 
-# MAGIC * Name: **Applied Data Engineering Solutions**
-# MAGIC * Version:  **2.0.1-BETA**
-# MAGIC * Built On: **Jan 20, 2022 at 23:48:24 UTC**
+# MAGIC * Name: **Advanced Data Engineering With Databricks**
+# MAGIC * Version:  **2.2.0-BETA**
+# MAGIC * Built On: **Feb 10, 2022 at 02:42:08 UTC**
 
 # COMMAND ----------
 

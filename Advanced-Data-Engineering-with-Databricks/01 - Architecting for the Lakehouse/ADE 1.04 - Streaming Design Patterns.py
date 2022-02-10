@@ -17,7 +17,7 @@
 # MAGIC - Use Structured Streaming to complete simple incremental ETL
 # MAGIC - Perform incremental writes to multiple tables
 # MAGIC - Incrementally update values in a key value store
-# MAGIC - Process Change Data Capture (CDC) data into Delta Tables using `MERGE`
+# MAGIC - Process Change Data Capture (CDC) data into Delta Tables using **`MERGE`**
 # MAGIC - Join two incremental tables
 # MAGIC - Join incremental and batch tables
 
@@ -28,33 +28,18 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/sql-setup $course="stream_design" $mode="reset"
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Note that because Structured Streaming will be used throughout this lesson, checkpoint directories will need to be specified for each of our different streaming queries.
-# MAGIC 
-# MAGIC The code below declares the checkpoints used throughout the lesson, and does a recursive delete to remove any state information from previous runs.
-
-# COMMAND ----------
-
-checkpointPath = userhome + "/_checkpoints/"
-silverCheckpoint = checkpointPath + "silver/"
-splitStreamCheckpoint = checkpointPath + "split_stream/"
-keyValueCheckpoint = checkpointPath + "key_value/"
-silverStatusCheckpoint = checkpointPath + "silver_status/"
-joinedCheckpoint = checkpointPath + "joined/"
-joinStatusCheckpoint = checkpointPath + "join_status/"
-
-dbutils.fs.rm(checkpointPath, True)
+# MAGIC %run ../Includes/module-1/setup-lesson-1.04
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Simple Incremental ETL
 # MAGIC 
-# MAGIC Likely the highest volume of data being processed by most organizations could largely be describing as moving data from one location to another while applying light transformations and validations. As most source data continues to grow as time passes, it's appropriate to refer to this data as incremental (sometimes also referred to as streaming data). Structured Streaming and Delta Lake make incremental ETL easy. 
+# MAGIC Likely the highest volume of data being processed by most organizations could largely be describing as moving data from one location to another while applying light transformations and validations. 
+# MAGIC 
+# MAGIC As most source data continues to grow as time passes, it's appropriate to refer to this data as incremental (sometimes also referred to as streaming data). 
+# MAGIC 
+# MAGIC Structured Streaming and Delta Lake make incremental ETL easy. 
 # MAGIC 
 # MAGIC Below we'll create a simple table and insert some values.
 
@@ -67,8 +52,8 @@ dbutils.fs.rm(checkpointPath, True)
 # MAGIC 
 # MAGIC INSERT INTO bronze
 # MAGIC VALUES (1, "Yve", 1.0),
-# MAGIC   (2, "Omar", 2.5),
-# MAGIC   (3, "Elia", 3.3)
+# MAGIC        (2, "Omar", 2.5),
+# MAGIC        (3, "Elia", 3.3)
 
 # COMMAND ----------
 
@@ -77,13 +62,28 @@ dbutils.fs.rm(checkpointPath, True)
 
 # COMMAND ----------
 
+from pyspark.sql import functions as F
+
 def update_silver():
-    spark.readStream.table("bronze").withColumn("processed_time", F.current_timestamp()).writeStream.option("checkpointLocation", silverCheckpoint).trigger(once=True).table("silver")
+    query = (spark.readStream
+                  .table("bronze")
+                  .withColumn("processed_time", F.current_timestamp())
+                  .writeStream.option("checkpointLocation", f"{DA.paths.checkpoints}/silver")
+                  .trigger(once=True)
+                  .table("silver"))
+    
+    query.awaitTermination()
+
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that while this code uses Structured Streaming, it's appropriate to think of this as a triggered batch processing incremental changes.
+# MAGIC While this code uses Structured Streaming, it's appropriate to think of this as a triggered batch processing incremental changes.
+# MAGIC 
+# MAGIC <img src="https://files.training.databricks.com/images/icon_note_32.png">
+# MAGIC To facilitate the demonstration of structured streams, we are using **`trigger(once=True)`** to slow<br/>
+# MAGIC down the processing of the data combined with **`query.awaitTermination()`** to prevent the lesson from<br/>
+# MAGIC moving forward until the one batch is processed.
 
 # COMMAND ----------
 
@@ -92,7 +92,7 @@ update_silver()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC As expected, the stream runs for a very brief time, and the `silver` table written contains all the values previously written to `bronze`.
+# MAGIC As expected, the stream runs for a very brief time, and the **`silver`** table written contains all the values previously written to **`bronze`**.
 
 # COMMAND ----------
 
@@ -102,15 +102,15 @@ update_silver()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Processing new records is as easy as adding them to our source table `bronze`...
+# MAGIC Processing new records is as easy as adding them to our source table **`bronze`**...
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC INSERT INTO bronze
 # MAGIC VALUES (4, "Ted", 4.7),
-# MAGIC   (5, "Tiffany", 5.5),
-# MAGIC   (6, "Vini", 6.3)
+# MAGIC        (5, "Tiffany", 5.5),
+# MAGIC        (6, "Vini", 6.3)
 
 # COMMAND ----------
 
@@ -136,16 +136,16 @@ update_silver()
 # MAGIC %md
 # MAGIC ## Writing to Multiple Tables
 # MAGIC 
-# MAGIC Those familiar with Structured Streaming may be aware that the `foreachBatch` method provides the option to execute custom data writing logic on each microbatch of streaming data.
+# MAGIC Those familiar with Structured Streaming may be aware that the **`foreachBatch`** method provides the option to execute custom data writing logic on each microbatch of streaming data.
 # MAGIC 
 # MAGIC New DBR functionality provides guarantees that these writes will be idempotent, even when writing to multiple tables. This is especially useful when data for multiple tables might be contained within a single record.
 # MAGIC 
-# MAGIC The code below first defines the custom writer logic to append records to two new tables, and then demonstrates using this function within `foreachBatch`.
+# MAGIC The code below first defines the custom writer logic to append records to two new tables, and then demonstrates using this function within **`foreachBatch`**.
 
 # COMMAND ----------
 
 def write_twice(microBatchDF, batchId):
-    appId = 'write_twice'
+    appId = "write_twice"
     
     microBatchDF.select("id", "name", F.current_timestamp().alias("processed_time")).write.option("txnVersion", batchId).option("txnAppId", appId).mode("append").saveAsTable("silver_name")
     
@@ -153,18 +153,21 @@ def write_twice(microBatchDF, batchId):
 
 
 def split_stream():
-    (spark.readStream.table("bronze")
-        .writeStream
-        .foreachBatch(write_twice)
-        .outputMode("update")
-        .option("checkpointLocation", splitStreamCheckpoint)
-        .trigger(once=True)
-        .start())
+    query = (spark.readStream.table("bronze")
+                 .writeStream
+                 .foreachBatch(write_twice)
+                 .outputMode("update")
+                 .option("checkpointLocation", f"{DA.paths.checkpoints}/split_stream")
+                 .trigger(once=True)
+                 .start())
+    
+    query.awaitTermination()
+    
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that while a stream will again be triggered, the two writes contained within the `write_twice` function are using Spark batch syntax. This will always be the case for writers called by `foreachBatch`.
+# MAGIC Note that while a stream will again be triggered, the two writes contained within the **`write_twice`** function are using Spark batch syntax. This will always be the case for writers called by **`foreachBatch`**.
 
 # COMMAND ----------
 
@@ -183,7 +186,7 @@ split_stream()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that the `processed_time` for each of these tables differs slightly. The logic defined above captures the current timestamp at the time each write executes, demonstrating that while both writes happen within the same streaming microbatch process, they are fully independent transactions (as such, downstream logic should be tolerant for slightly asynchronous updates).
+# MAGIC Note that the **`processed_time`** for each of these tables differs slightly. The logic defined above captures the current timestamp at the time each write executes, demonstrating that while both writes happen within the same streaming microbatch process, they are fully independent transactions (as such, downstream logic should be tolerant for slightly asynchronous updates).
 
 # COMMAND ----------
 
@@ -193,15 +196,15 @@ split_stream()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Insert more values into the `bronze` table.
+# MAGIC Insert more values into the **`bronze`** table.
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC INSERT INTO bronze
 # MAGIC VALUES (7, "Viktor", 7.4),
-# MAGIC   (8, "Hiro", 8.2),
-# MAGIC   (9, "Shana", 9.9)
+# MAGIC        (8, "Hiro", 8.2),
+# MAGIC        (9, "Shana", 9.9)
 
 # COMMAND ----------
 
@@ -234,22 +237,25 @@ split_stream()
 # MAGIC 
 # MAGIC Incremental aggregation can be useful for a number of purposes, including dashboarding and enriching reports with current summary data.
 # MAGIC 
-# MAGIC The logic below defines a handful of aggregations against the `silver` table.
+# MAGIC The logic below defines a handful of aggregations against the **`silver`** table.
 
 # COMMAND ----------
 
 def update_key_value():
-    (spark.readStream
-         .table("silver")
-         .groupBy("id")
-         .agg(F.sum("value").alias("total_value"), 
-              F.mean("value").alias("avg_value"),
-              F.count("value").alias("record_count"))
-         .writeStream
-         .option("checkpointLocation", keyValueCheckpoint)
-         .outputMode("complete")
-         .trigger(once=True)
-         .table("key_value"))
+    query = (spark.readStream
+                  .table("silver")
+                  .groupBy("id")
+                  .agg(F.sum("value").alias("total_value"), 
+                       F.mean("value").alias("avg_value"),
+                       F.count("value").alias("record_count"))
+                  .writeStream
+                  .option("checkpointLocation", f"{DA.paths.checkpoints}/key_value")
+                  .outputMode("complete")
+                  .trigger(once=True)
+                  .table("key_value"))
+    
+    query.awaitTermination()
+    
 
 # COMMAND ----------
 
@@ -272,23 +278,23 @@ update_key_value()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Adding more values to the `silver` table will allow more interesting aggregation.
+# MAGIC Adding more values to the **`silver`** table will allow more interesting aggregation.
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC INSERT INTO silver
 # MAGIC VALUES (1, "Yve", 1.0, current_timestamp()),
-# MAGIC   (2, "Omar", 2.5, current_timestamp()),
-# MAGIC   (3, "Elia", 3.3, current_timestamp()),
-# MAGIC   (7, "Viktor", 7.4, current_timestamp()),
-# MAGIC   (8, "Hiro", 8.2, current_timestamp()),
-# MAGIC   (9, "Shana", 9.9, current_timestamp())
+# MAGIC        (2, "Omar", 2.5, current_timestamp()),
+# MAGIC        (3, "Elia", 3.3, current_timestamp()),
+# MAGIC        (7, "Viktor", 7.4, current_timestamp()),
+# MAGIC        (8, "Hiro", 8.2, current_timestamp()),
+# MAGIC        (9, "Shana", 9.9, current_timestamp())
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC One thing to note is that the logic being executed is currently overwriting the resulting table with each write. In the next section, `MERGE` will be used in combination with `foreachBatch` to update existing records. This pattern can also be applied with key-value stores.
+# MAGIC One thing to note is that the logic being executed is currently overwriting the resulting table with each write. In the next section, **`MERGE`** will be used in combination with **`foreachBatch`** to update existing records. This pattern can also be applied with key-value stores.
 
 # COMMAND ----------
 
@@ -305,7 +311,7 @@ update_key_value()
 # MAGIC ## Processing Change Data Capture Data
 # MAGIC While the change data capture (CDC) data emitted by various systems will vary greatly, incrementally processing these data with Databricks is straightforward.
 # MAGIC 
-# MAGIC Here the `bronze_status` table will represent the raw CDC information, rather than row-level data.
+# MAGIC Here the **`bronze_status`** table will represent the raw CDC information, rather than row-level data.
 
 # COMMAND ----------
 
@@ -323,7 +329,7 @@ update_key_value()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The `silver_status` table below has been created to track the current `status` for a given `user_id`.
+# MAGIC The **`silver_status`** table below has been created to track the current **`status`** for a given **`user_id`**.
 
 # COMMAND ----------
 
@@ -333,9 +339,9 @@ update_key_value()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The `MERGE` statement can easily be written with SQL to apply CDC changes appropriately, given the type of update received.
+# MAGIC The **`MERGE`** statement can easily be written with SQL to apply CDC changes appropriately, given the type of update received.
 # MAGIC 
-# MAGIC The rest of the `upsert_cdc` method contains the logic necessary to run SQL code against a micro-batch in a PySpark DataStreamWriter.
+# MAGIC The rest of the **`upsert_cdc`** method contains the logic necessary to run SQL code against a micro-batch in a PySpark DataStreamWriter.
 
 # COMMAND ----------
 
@@ -358,7 +364,17 @@ def upsert_cdc(microBatchDF, batchID):
     microBatchDF._jdf.sparkSession().sql(query)
     
 def streaming_merge():
-    spark.readStream.table("bronze_status").writeStream.foreachBatch(upsert_cdc).option("checkpointLocation", silverStatusCheckpoint).outputMode("update").trigger(once=True).start()
+    query = (spark.readStream
+                  .table("bronze_status")
+                  .writeStream
+                  .foreachBatch(upsert_cdc)
+                  .option("checkpointLocation", f"{DA.paths.checkpoints}/silver_status")
+                  .outputMode("update")
+                  .trigger(once=True)
+                  .start())
+    
+    query.awaitTermination()
+    
 
 # COMMAND ----------
 
@@ -416,28 +432,52 @@ def stream_stream_join():
     nameDF = spark.readStream.table("silver_name")
     valueDF = spark.readStream.table("silver_value")
     
-    (nameDF.join(valueDF, nameDF.id == valueDF.id, "inner")
-        .select(nameDF.id, 
-                nameDF.name, 
-                valueDF.value, 
-                F.current_timestamp().alias("joined_timestamp"))
-        .writeStream
-        .option("checkpointLocation", joinedCheckpoint)
-        .table("joined_streams"))
+    return (nameDF.join(valueDF, nameDF.id == valueDF.id, "inner")
+                  .select(nameDF.id, 
+                          nameDF.name, 
+                          valueDF.value, 
+                          F.current_timestamp().alias("joined_timestamp"))
+                  .writeStream
+                  .option("checkpointLocation", f"{DA.paths.checkpoints}/joined")
+                  .queryName("joined_streams_query")
+                  .table("joined_streams")
+           )
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that the logic defined above does not set a `trigger` option. This means that the stream will run in continuous execution mode, triggering every 500ms by default.
+# MAGIC Note that the logic defined above does not set a **`trigger`** option.
+# MAGIC 
+# MAGIC This means that the stream will run in continuous execution mode, triggering every 500ms by default.
 
 # COMMAND ----------
 
-stream_stream_join()
+query = stream_stream_join()
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC This also means that it is possible to read the new tables before there is any data in them.
+# MAGIC 
+# MAGIC Because the stream never stops we can't block until the trigger-once stream has terminated with **`awaitTermination()`**.
+# MAGIC 
+# MAGIC Instead we can block until "some" data is processed by leveraging **`query.recentProgress`**.
+
+# COMMAND ----------
+
+def block_until_stream_is_ready(query, min_batches=2):
+    import time
+    while len(query.recentProgress) < min_batches:
+        time.sleep(5) # Give it a couple of seconds
+
+    print(f"The stream has processed {len(query.recentProgress)} batchs")
+    
+block_until_stream_is_ready(query)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Running `display()` on a streaming table read is a way to monitor table updates in near-real-time while in interactive development. Note that a separate stream is started.
+# MAGIC Running **`display()`** on a streaming table is a way to monitor table updates in near-real-time while in interactive development. 
 
 # COMMAND ----------
 
@@ -445,24 +485,39 @@ display(spark.readStream.table("joined_streams"))
 
 # COMMAND ----------
 
+# MAGIC %md 
+# MAGIC 
+# MAGIC <img src="https://files.training.databricks.com/images/icon_note_32.png"> Note that a separate stream is started.
+# MAGIC 
+# MAGIC One to process the data as part of our original pipline
+# MAGIC 
+# MAGIC A second to update the **`display()`** function with the latest results
+
+# COMMAND ----------
+
+for stream in spark.streams.active:
+    print(stream.name)
+
+# COMMAND ----------
+
 # MAGIC %md
-# MAGIC Here we'll add new values to the `bronze` table.
+# MAGIC Here we'll add new values to the **`bronze`** table.
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC INSERT INTO bronze
 # MAGIC VALUES (10, "Pedro", 10.5),
-# MAGIC   (11, "Amelia", 11.5),
-# MAGIC   (12, "Diya", 12.3),
-# MAGIC   (13, "Li", 13.4),
-# MAGIC   (14, "Daiyu", 14.2),
-# MAGIC   (15, "Jacques", 15.9)
+# MAGIC        (11, "Amelia", 11.5),
+# MAGIC        (12, "Diya", 12.3),
+# MAGIC        (13, "Li", 13.4),
+# MAGIC        (14, "Daiyu", 14.2),
+# MAGIC        (15, "Jacques", 15.9)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The stream-stream join is configured against the tables resulting from the `split_stream` function; run this again and data should quickly process through the streaming join running above.
+# MAGIC The stream-stream join is configured against the tables resulting from the **`split_stream`** function; run this again and data should quickly process through the streaming join running above.
 
 # COMMAND ----------
 
@@ -476,7 +531,9 @@ split_stream()
 # COMMAND ----------
 
 for stream in spark.streams.active:
+    print(f"Stopping {stream.name}")
     stream.stop()
+    stream.awaitTermination()
 
 # COMMAND ----------
 
@@ -492,7 +549,22 @@ for stream in spark.streams.active:
 statusDF = spark.read.table("silver_status")
 bronzeDF = spark.readStream.table("bronze")
 
-bronzeDF.alias("bronze").join(statusDF.alias("status"), bronzeDF.id==statusDF.user_id, "inner").select("bronze.*", "status.status").writeStream.option("checkpointLocation", joinStatusCheckpoint).table("joined_status")
+query = (bronzeDF.alias("bronze")
+                 .join(statusDF.alias("status"), bronzeDF.id==statusDF.user_id, "inner")
+                 .select("bronze.*", "status.status")
+                 .writeStream
+                 .option("checkpointLocation", f"{DA.paths.checkpoints}/join_status")
+                 .queryName("joined_status_query")
+                 .table("joined_status")
+)
+
+# COMMAND ----------
+
+# MAGIC %md Again, wait until we have some data before moving forward
+
+# COMMAND ----------
+
+block_until_stream_is_ready(query)
 
 # COMMAND ----------
 
@@ -502,7 +574,7 @@ bronzeDF.alias("bronze").join(statusDF.alias("status"), bronzeDF.id==statusDF.us
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Only those records with a matching `id` in `joined_status` at the time the stream is processed will be represented in the resulting table.
+# MAGIC Only those records with a matching **`id`** in **`joined_status`** at the time the stream is processed will be represented in the resulting table.
 
 # COMMAND ----------
 
@@ -512,7 +584,7 @@ bronzeDF.alias("bronze").join(statusDF.alias("status"), bronzeDF.id==statusDF.us
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Processing new records into the `silver_status` table will not automatically trigger updates to the results of the stream-static join.
+# MAGIC Processing new records into the **`silver_status`** table will not automatically trigger updates to the results of the stream-static join.
 
 # COMMAND ----------
 
@@ -542,7 +614,7 @@ streaming_merge()
 # MAGIC %sql
 # MAGIC INSERT INTO bronze
 # MAGIC VALUES (16, "Marissa", 1.9),
-# MAGIC   (17, "Anne", 2.7)
+# MAGIC        (17, "Anne", 2.7)
 
 # COMMAND ----------
 
@@ -556,15 +628,12 @@ streaming_merge()
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Stop Streaming Jobs
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
 
 # COMMAND ----------
 
-# Stop Streaming Job
-for stream in spark.streams.active:
-        stopped = True
-        stream.stop()
+DA.cleanup()
 
 # COMMAND ----------
 

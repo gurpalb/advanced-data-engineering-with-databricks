@@ -42,11 +42,11 @@
 # MAGIC 
 # MAGIC The following code defines some paths, a demo database, and clears out previous runs of the demo.
 # MAGIC 
-# MAGIC It also defines a variable `Raw` that we'll use to land raw data in our source directory, allowing us to process new records as if they were arriving in production.
+# MAGIC It also defines a variable **`Raw`** that we'll use to land raw data in our source directory, allowing us to process new records as if they were arriving in production.
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/cdc-setup $mode="reset"
+# MAGIC %run ../Includes/module-3/setup-lesson-3.06-cdc-setup $mode="reset"
 
 # COMMAND ----------
 
@@ -55,7 +55,7 @@
 
 # COMMAND ----------
 
-spark.conf.set('spark.databricks.delta.properties.defaults.enableChangeDataFeed',True)
+spark.conf.set("spark.databricks.delta.properties.defaults.enableChangeDataFeed", True)
 
 # COMMAND ----------
 
@@ -100,7 +100,7 @@ spark.sql(f"""
     .writeStream
     .format("delta")
     .outputMode("append")
-#     .trigger(once=True)
+    #.trigger(once=True)
     .trigger(processingTime='5 seconds')
     .option("checkpointLocation", userhome + "/_bronze_checkpoint")
     .table("bronze"))
@@ -108,7 +108,7 @@ spark.sql(f"""
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Expand the stream monitor above to see the progress of your stream. No files should have been ingestedl.
+# MAGIC Expand the stream monitor above to see the progress of your stream. No files should have been ingested.
 # MAGIC 
 # MAGIC Use the cell below to land a batch of data and list files in the source; you should see these records processed as a batch.
 
@@ -122,7 +122,7 @@ dbutils.fs.ls(Raw.userdir)
 # MAGIC %md
 # MAGIC ## Create a Target Table
 # MAGIC 
-# MAGIC Here we use `DEEP CLONE` to move read-only data from PROD to our DEV environment (where we have full write/delete access).
+# MAGIC Here we use **`DEEP CLONE`** to move read-only data from PROD to our DEV environment (where we have full write/delete access).
 
 # COMMAND ----------
 
@@ -139,7 +139,7 @@ spark.sql(f"""
 # MAGIC %md
 # MAGIC Tables that were not created with CDF enabled will not have it turned on by default, but can be altered to capture changes with the following syntax.
 # MAGIC 
-# MAGIC Note that editing properties will version a table. Also note that no CDC is captured during the CLONE operation above.
+# MAGIC Note that editing properties will version a table. Also note that no CDC is captured during the **`CLONE`** operation above.
 
 # COMMAND ----------
 
@@ -151,7 +151,7 @@ spark.sql(f"""
 # MAGIC %md
 # MAGIC ## Upsert Data with Delta Lake
 # MAGIC 
-# MAGIC Here we define upsert logic into the silver table using a streaming read against the bronze table, matching on our unique identifier `mrn`.
+# MAGIC Here we define upsert logic into the silver table using a streaming read against the bronze table, matching on our unique identifier **`mrn`**.
 # MAGIC 
 # MAGIC We specify an additional conditional check to ensure that a field in the data has changed before inserting the new record.
 
@@ -190,7 +190,7 @@ def upsertToDelta(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that we have an additional metadata directory nested in our table directory, `_change_data`
+# MAGIC Note that we have an additional metadata directory nested in our table directory, **`_change_data`**
 
 # COMMAND ----------
 
@@ -211,8 +211,8 @@ dbutils.fs.ls(silverPath + "/_change_data")
 # MAGIC ## Read the Change Data Feed
 # MAGIC 
 # MAGIC To pick up the recorded CDC data, we add two options:
-# MAGIC - `readChangeData`
-# MAGIC - `startingVersion` (can use `startingTimestamp` instead)
+# MAGIC - **`readChangeData`**
+# MAGIC - **`startingVersion`** (can use **`startingTimestamp`** instead)
 # MAGIC 
 # MAGIC Here we'll do a streaming display of just those patients in LA. Note that users with changes have two records present.
 
@@ -224,7 +224,7 @@ display(cdcDF.filter("city = 'Los Angeles'"))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC If we land another file in our source directory and wait a few seconds, we'll see that we now have captured CDC changes for multiple `_commit_version` (change the sort order of the `_commit_version` column in the display above to see this).
+# MAGIC If we land another file in our source directory and wait a few seconds, we'll see that we now have captured CDC changes for multiple **`_commit_version`** (change the sort order of the **`_commit_version`** column in the display above to see this).
 
 # COMMAND ----------
 
@@ -234,12 +234,12 @@ Raw.arrival()
 
 # MAGIC %md
 # MAGIC ## Gold Table
-# MAGIC Our gold table will capture all of those patients that have a new address, and record this information alongside 2 timestamps: the time at which this change was made in our source system (currently labeled `updated`) and the time this was processed into our silver table (captured by the `_commit_timestamp` generated CDC field).
+# MAGIC Our gold table will capture all of those patients that have a new address, and record this information alongside 2 timestamps: the time at which this change was made in our source system (currently labeled **`updated`**) and the time this was processed into our silver table (captured by the **`_commit_timestamp`** generated CDC field).
 # MAGIC 
 # MAGIC Within silver table CDC records:
-# MAGIC - check for max `_commit_version` for each record
+# MAGIC - check for max **`_commit_version`** for each record
 # MAGIC - if new version and address change, insert to gold table
-# MAGIC - record `updated_timestamp` and `processed_timestamp`
+# MAGIC - record **`updated_timestamp`** and **`processed_timestamp`**
 # MAGIC 
 # MAGIC #### Gold Table Schema
 # MAGIC | field | type |
@@ -281,7 +281,7 @@ spark.sql(f"""
 
 # MAGIC %md
 # MAGIC 
-# MAGIC Note that we are using a table that has updates written to it as a streaming source! This is a **huge** value add, and something that historically has required exensively workarounds to process correctly.
+# MAGIC Note that we are using a table that has updates written to it as a streaming source! This is a **huge** value add, and something that historically has required extensive workarounds to process correctly.
 
 # COMMAND ----------
 
@@ -290,10 +290,10 @@ silverStreamDF = spark.readStream.format("delta").option("readChangeData", True)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Our `_change_type` field lets us easily distinguish valid and invalid records.
+# MAGIC Our **`_change_type`** field lets us easily distinguish valid and invalid records.
 # MAGIC 
-# MAGIC New valid rows will have the `update_postimage` or `insert` label.
-# MAGIC New invalid rows will have the `update_preimage` or `delete` label. 
+# MAGIC New valid rows will have the **`update_postimage`** or **`insert`** label.
+# MAGIC New invalid rows will have the **`update_preimage`** or **`delete`** label. 
 # MAGIC 
 # MAGIC (**NOTE**: We'll demonstrate logic for propagating deletes a little later)
 # MAGIC 
@@ -301,28 +301,32 @@ silverStreamDF = spark.readStream.format("delta").option("readChangeData", True)
 
 # COMMAND ----------
 
-newDF = (silverStreamDF.filter(F.col("_change_type").isin(["update_postimage", "insert"]))
-             .selectExpr("mrn",
-                 "street_address new_street_address",
-                 "zip new_zip",
-                 "city new_city",
-                 "state new_state",
-                 "updated updated_timestamp",
-                 "_commit_timestamp processed_timestamp"))
+newDF = (silverStreamDF
+         .filter(F.col("_change_type").isin(["update_postimage", "insert"]))
+         .selectExpr("mrn",
+                     "street_address new_street_address",
+                     "zip new_zip",
+                     "city new_city",
+                     "state new_state",
+                     "updated updated_timestamp",
+                     "_commit_timestamp processed_timestamp")
+        )
 
                                                                                          
-oldDF = (silverStreamDF.filter(F.col("_change_type").isin(["update_preimage"]))
-             .selectExpr("mrn",
-                 "street_address old_street_address",
-                 "zip old_zip",
-                 "city old_city",
-                 "state old_state",
-                 "_commit_timestamp processed_timestamp"))
+oldDF = (silverStreamDF
+         .filter(F.col("_change_type").isin(["update_preimage"]))
+         .selectExpr("mrn",
+                     "street_address old_street_address",
+                     "zip old_zip",
+                     "city old_city",
+                     "state old_state",
+                     "_commit_timestamp processed_timestamp")
+        )
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Assuming that we have properly deduplicated our data to ensure that only a single record for our `mrn` can be processed to our silver table, `mrn` and `_commit_timestamp` (aliased to `processed_timestamp` here) serve as a unique composite key.
+# MAGIC Assuming that we have properly deduplicated our data to ensure that only a single record for our **`mrn`** can be processed to our silver table, **`mrn`** and **`_commit_timestamp`** (aliased to **`processed_timestamp`** here) serve as a unique composite key.
 # MAGIC 
 # MAGIC Our join will allow us to match up the current and previous states of our data to track all changes.
 # MAGIC 
@@ -357,7 +361,7 @@ oldDF = (silverStreamDF.filter(F.col("_change_type").isin(["update_preimage"]))
 # MAGIC %md
 # MAGIC If we land a new raw file and wait a few seconds, we can see that all of our changes have propagated through our pipeline.
 # MAGIC 
-# MAGIC (This assumes you're using `processingTime` instead of trigger once processing. Scroll up to the gold table streaming write to wait for a new peak in the processing rate to know your data has arrived.)
+# MAGIC (This assumes you're using **`processingTime`** instead of trigger once processing. Scroll up to the gold table streaming write to wait for a new peak in the processing rate to know your data has arrived.)
 
 # COMMAND ----------
 
@@ -390,7 +394,7 @@ for stream in spark.streams.active:
 # MAGIC 
 # MAGIC While some use cases may require processing deletes alongside updates and inserts, the most important delete requests are those that allow companies to maintain compliance with privacy regulations such as GDPR and CCPA. Most companies have stated SLAs around how long these requests will take to process, but for various reasons, these are often handled in pipelines separate from their core ETL.
 # MAGIC 
-# MAGIC Here, we should a single user being deleted from our `silver` table.
+# MAGIC Here, we should a single user being deleted from our **`silver`** table.
 
 # COMMAND ----------
 
@@ -400,7 +404,7 @@ for stream in spark.streams.active:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC As expected, when we try to locate this user in our `silver` table, we'll get no result.
+# MAGIC As expected, when we try to locate this user in our **`silver`** table, we'll get no result.
 
 # COMMAND ----------
 
@@ -422,7 +426,7 @@ for stream in spark.streams.active:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Because we have a record of this delete action, we can define logic that propagates deletes to our `gold` table.
+# MAGIC Because we have a record of this delete action, we can define logic that propagates deletes to our **`gold`** table.
 
 # COMMAND ----------
 
@@ -448,6 +452,15 @@ for stream in spark.streams.active:
 
 # MAGIC %sql
 # MAGIC SELECT * FROM gold WHERE mrn = 14125426
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

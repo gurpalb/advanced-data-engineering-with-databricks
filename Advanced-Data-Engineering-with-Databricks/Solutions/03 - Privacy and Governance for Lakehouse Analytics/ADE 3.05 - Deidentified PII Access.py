@@ -27,7 +27,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/ade-setup
+# MAGIC %run ../Includes/module-3/setup-lesson-3.05-ade_setup
 
 # COMMAND ----------
 
@@ -41,7 +41,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Consider our `users` table with the following columns.
+# MAGIC Consider our **`users`** table with the following columns.
 
 # COMMAND ----------
 
@@ -88,7 +88,7 @@ spark.table("users").columns
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Now when we query from `users_vw`, only members of the group `ade_demo` will be able to see results in plain text.
+# MAGIC Now when we query from **`users_vw`**, only members of the group **`ade_demo`** will be able to see results in plain text.
 # MAGIC 
 # MAGIC **NOTE**: You may not have privileges to create groups or assign membership. Your instructor should be able to demonstrate how group membership will change query results.
 
@@ -102,9 +102,9 @@ spark.table("users").columns
 # MAGIC %md
 # MAGIC ## Adding Conditional Row Access
 # MAGIC 
-# MAGIC Adding views with `WHERE` clauses to filter source data on different conditions for teams throughout an organization can be a beneficial option for granting access to only the necessary data to each audience. Dynamic views add the option to create these views with full access to underlying data for users with elevated privileges.
+# MAGIC Adding views with **`WHERE`** clauses to filter source data on different conditions for teams throughout an organization can be a beneficial option for granting access to only the necessary data to each audience. Dynamic views add the option to create these views with full access to underlying data for users with elevated privileges.
 # MAGIC 
-# MAGIC Note the views can be layered on top of one another; below, the `users_vw` from the previous step is modified with conditional access. Users that aren't members of the specified group will only be able to see records from the city of Los Angeles that have been updated after the specified date.
+# MAGIC Note the views can be layered on top of one another; below, the **`users_vw`** from the previous step is modified with conditional access. Users that aren't members of the specified group will only be able to see records from the city of Los Angeles that have been updated after the specified date.
 
 # COMMAND ----------
 
@@ -125,13 +125,13 @@ spark.table("users").columns
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Provide Provisional Access to `user_lookup` Table
+# MAGIC ## Provide Provisional Access to **`user_lookup`** Table
 # MAGIC 
-# MAGIC Our `user_lookup` table allows our ETL pipelines to match up our various identifiers with our `alt_id` and pull demographic information, as necessary.
+# MAGIC Our **`user_lookup`** table allows our ETL pipelines to match up our various identifiers with our **`alt_id`** and pull demographic information, as necessary.
 # MAGIC 
 # MAGIC Most of our team will not need access to our full PII, but may need to use this table to match up various natural keys from different systems.
 # MAGIC 
-# MAGIC Define a dynamic view named `user_lookup_vw` below that provides conditional access to the `alt_id` but full access to the other info in our `user_lookup` table.
+# MAGIC Define a dynamic view named **`user_lookup_vw`** below that provides conditional access to the **`alt_id`** but full access to the other info in our **`user_lookup`** table.
 
 # COMMAND ----------
 
@@ -190,7 +190,7 @@ def age_bins(dob_col):
 # MAGIC %md
 # MAGIC Because this aggregate view of demographic information is no longer personally identifiable, we can safely store this using our natural key.
 # MAGIC 
-# MAGIC We'll reference our `user_lookup` table to match our IDs.
+# MAGIC We'll reference our **`user_lookup`** table to match our IDs.
 
 # COMMAND ----------
 
@@ -221,6 +221,15 @@ dbutils.fs.rm(Paths.userBins, True)
 
 # MAGIC %md
 # MAGIC Note that as currently implemented, each time this logic is processed, all records will be overwritten with newly calculated values. To decrease chances of identifying birth date at binned boundaries, random noise could be added to the values used to calculate age bins (generally keeping age bins accurate, but reducing the likelihood of transitioning a user to a new bin on their exact birthday).
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

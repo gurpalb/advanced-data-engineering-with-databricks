@@ -10,7 +10,7 @@
 # MAGIC %md
 # MAGIC # Deleting at Partition Boundaries
 # MAGIC 
-# MAGIC While we've deleted our PII from our silver tables, we haven't dealt with the fact that this data still exists in our `bronze` table.
+# MAGIC While we've deleted our PII from our silver tables, we haven't dealt with the fact that this data still exists in our **`bronze`** table.
 # MAGIC 
 # MAGIC Note that because of stream composability and the design choice to use a multiplex bronze pattern, enabling Delta Change Data Feed (CDF) to propagate delete information would require redesigning each of our pipelines to take advantage of this output. Without using CDF, modification of data in a table will break downstream composability.
 # MAGIC 
@@ -24,7 +24,7 @@
 # MAGIC By the end of this notebook, students will be able to:
 # MAGIC - Delete data using partition boundaries
 # MAGIC - Configure downstream incremental reads to safely ignore these deletions
-# MAGIC - Use `VACUUM` to review files to be deleted and commit deletes
+# MAGIC - Use **`VACUUM`** to review files to be deleted and commit deletes
 # MAGIC - Union archived data with production tables to recreate a full historic dataset
 
 # COMMAND ----------
@@ -34,12 +34,12 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/ade-setup
+# MAGIC %run ../Includes/module-3/setup-lesson-3.08-ade_setup
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Our Delta table is partitioned by two fields. Our top level partition is the `topic` column. Run the cell to note the 3 partition directories (and the Delta Log directory) that collectively comprise our `bronze` table.
+# MAGIC Our Delta table is partitioned by two fields. Our top level partition is the **`topic`** column. Run the cell to note the 3 partition directories (and the Delta Log directory) that collectively comprise our **`bronze`** table.
 
 # COMMAND ----------
 
@@ -48,7 +48,7 @@ dbutils.fs.ls(Paths.bronzeTable)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Our 2nd level partition was on our `week_part` column, which we derived as the year and week of year. There are around 20 directories currently present at this level. 
+# MAGIC Our 2nd level partition was on our **`week_part`** column, which we derived as the year and week of year. There are around 20 directories currently present at this level. 
 
 # COMMAND ----------
 
@@ -71,7 +71,7 @@ spark.table("bronze").filter("topic='user_info'").filter("week_part<='2019-48'")
 # MAGIC 
 # MAGIC The cell below simulates this process (here using copy instead of move). Note that because only the data files and partition directories are being relocated, the resultant table will be Parquet by default.
 # MAGIC 
-# MAGIC **NOTE**: For best performance, directories should have `OPTIMIZE` run to condense small files. Because valid and stale data files are stored side-by-side in Delta Lake files, partitions should also have `VACUUM` executed prior to moving any Delta Lake data to a pure Parquet table to ensure only valid files are copied.
+# MAGIC **NOTE**: For best performance, directories should have **`OPTIMIZE`** run to condense small files. Because valid and stale data files are stored side-by-side in Delta Lake files, partitions should also have **`VACUUM`** executed prior to moving any Delta Lake data to a pure Parquet table to ensure only valid files are copied.
 
 # COMMAND ----------
 
@@ -81,9 +81,9 @@ dbutils.fs.rm(Paths.basePath + "/pii_archive", True)
 [dbutils.fs.cp(x[0], Paths.basePath + "/pii_archive/" + x[1], True) for x in dbutils.fs.ls(Paths.bronzeTable + "/topic=user_info") if x[1][-8:-1] <= '2019-48'];
 
 spark.sql(f"""
-CREATE TABLE IF NOT EXISTS user_info_archived
-USING parquet
-LOCATION '{Paths.basePath + "/pii_archive/"}'
+  CREATE TABLE IF NOT EXISTS user_info_archived
+  USING parquet
+  LOCATION '{Paths.basePath + "/pii_archive/"}'
 """)
 
 spark.sql("MSCK REPAIR TABLE user_info_archived")
@@ -103,9 +103,9 @@ dbutils.fs.ls(Paths.basePath + "/pii_archive/")
 
 # MAGIC %md
 # MAGIC ## Deleting at a Partition Boundary
-# MAGIC Here we'll model deleting all `user_info` that was received before week 49 of 2019.
+# MAGIC Here we'll model deleting all **`user_info`** that was received before week 49 of 2019.
 # MAGIC 
-# MAGIC Note that we are deleting cleanly along partition boundaries. All the data contained in the specified `week_part` directories will be removed from our table.
+# MAGIC Note that we are deleting cleanly along partition boundaries. All the data contained in the specified **`week_part`** directories will be removed from our table.
 
 # COMMAND ----------
 
@@ -117,7 +117,7 @@ dbutils.fs.ls(Paths.basePath + "/pii_archive/")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC We can confirm this delete processed successfully by looking at the history. The `operationMetrics` column will indicate the number of removed files.
+# MAGIC We can confirm this delete processed successfully by looking at the history. The **`operationMetrics`** column will indicate the number of removed files.
 
 # COMMAND ----------
 
@@ -127,7 +127,7 @@ dbutils.fs.ls(Paths.basePath + "/pii_archive/")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC When deleting along partition boundaries, we don't write out new data files; recording the files as removed in the Delta log is sufficient. However, file deletion will not actually occur until we VACUUM our table. Note that all of our week partitions still exist in our `user_info` directory and that data files still exist in each week directory.
+# MAGIC When deleting along partition boundaries, we don't write out new data files; recording the files as removed in the Delta log is sufficient. However, file deletion will not actually occur until we **`VACUUM`** our table. Note that all of our week partitions still exist in our **`user_info`** directory and that data files still exist in each week directory.
 
 # COMMAND ----------
 
@@ -138,7 +138,7 @@ dbutils.fs.ls(Paths.bronzeTable + "/topic=user_info/week_part=2019-48")
 # MAGIC %md
 # MAGIC ## Reviewing and Committing Deletes
 # MAGIC 
-# MAGIC By default, the Delta engine will prevent `VACUUM` operations with less than 7 days of retention. The cell below overrides this check.
+# MAGIC By default, the Delta engine will prevent **`VACUUM`** operations with less than 7 days of retention. The cell below overrides this check.
 
 # COMMAND ----------
 
@@ -147,14 +147,14 @@ spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", False)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Adding the `DRY RUN` keyword to the end of our `VACUUM` statement allows us to preview files to be deleted before they are permanently removed. 
+# MAGIC Adding the **`DRY RUN`** keyword to the end of our **`VACUUM`** statement allows us to preview files to be deleted before they are permanently removed. 
 # MAGIC 
 # MAGIC Note that at this moment we could still recover our deleted data by running:
 # MAGIC 
-# MAGIC ```
-# MAGIC RESTORE bronze
-# MAGIC TO VERSION AS OF <version>
-# MAGIC ```
+# MAGIC <strong><code>
+# MAGIC RESTORE bronze<br/>
+# MAGIC TO VERSION AS OF {version}
+# MAGIC </code></strong>
 
 # COMMAND ----------
 
@@ -164,7 +164,7 @@ spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", False)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Executing the `VACUUM` command below permanently deletes these files.
+# MAGIC Executing the **`VACUUM`** command below permanently deletes these files.
 
 # COMMAND ----------
 
@@ -174,7 +174,7 @@ spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", False)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC For safety, it's best to always re-enable our `retentionDurationCheck`. In production, you should avoid overriding this check whenever possible (if other operations are acting against files not yet committed to a Delta table and written before the retention threshold, `VACUUM` can result in data corruption).
+# MAGIC For safety, it's best to always re-enable our **`retentionDurationCheck`**. In production, you should avoid overriding this check whenever possible (if other operations are acting against files not yet committed to a Delta table and written before the retention threshold, **`VACUUM`** can result in data corruption).
 
 # COMMAND ----------
 
@@ -183,9 +183,9 @@ spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", True)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that empty directories will eventually be cleaned up with `VACUUM`, but may not always be deleted as they are emptied of data files. 
+# MAGIC Note that empty directories will eventually be cleaned up with **`VACUUM`**, but may not always be deleted as they are emptied of data files. 
 # MAGIC 
-# MAGIC The cell below attempts to list the directory for week 48 of 2019 for the `user_info` topic. If it fails, it will list all the week partition directories left in this topic. 
+# MAGIC The cell below attempts to list the directory for week 48 of 2019 for the **`user_info`** topic. If it fails, it will list all the week partition directories left in this topic. 
 # MAGIC 
 # MAGIC Either of these list operations will demonstrate that we have successfully committed the deletes against our tombstoned files.
 
@@ -199,7 +199,7 @@ except:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC As such, querying the `bronze` table with the same filters used in our delete statement should yield 0 records.
+# MAGIC As such, querying the **`bronze`** table with the same filters used in our delete statement should yield 0 records.
 
 # COMMAND ----------
 
@@ -211,9 +211,9 @@ except:
 # MAGIC %md
 # MAGIC ## Recreating Full Table History
 # MAGIC 
-# MAGIC Note that because Parquet using directory partitions as columns in the resulting dataset, the data that was backed up no longer has a `topic` field in its schema.
+# MAGIC Note that because Parquet using directory partitions as columns in the resulting dataset, the data that was backed up no longer has a **`topic`** field in its schema.
 # MAGIC 
-# MAGIC The logic below addresses this while calling `UNION` on the archived and production datasets to recreate the full history of the `user_info` topic.
+# MAGIC The logic below addresses this while calling **`UNION`** on the archived and production datasets to recreate the full history of the **`user_info`** topic.
 
 # COMMAND ----------
 
@@ -235,12 +235,12 @@ except:
 # MAGIC %md
 # MAGIC ## Updating Streaming Reads to Ignore Changes
 # MAGIC 
-# MAGIC The cell below condenses all the code used to perform streaming updates to our `users` table.
+# MAGIC The cell below condenses all the code used to perform streaming updates to our **`users`** table.
 # MAGIC 
 # MAGIC If you try to execute this code right now, you'll raise an exception
 # MAGIC > Detected deleted data from streaming source
 # MAGIC 
-# MAGIC Line 22 of the cell below adds the `.option("ignoreDeletes", True)` to the DataStreamReader. This option is all that is necessary to enable streaming processing from Delta tables with partition deletes.
+# MAGIC Line 22 of the cell below adds the **`.option("ignoreDeletes", True)`** to the DataStreamReader. This option is all that is necessary to enable streaming processing from Delta tables with partition deletes.
 
 # COMMAND ----------
 
@@ -331,7 +331,16 @@ display(spark.read.json(Paths.users + f"/_delta_log/{max_version}"))
 
 # MAGIC %md
 # MAGIC ## Next Steps
-# MAGIC While we did not modify data in our `workout` or `bpm` partitions, because these read from the same `bronze` table we'll need to also update their DataStreamReader logic to ignore changes.
+# MAGIC While we did not modify data in our **`workout`** or **`bpm`** partitions, because these read from the same **`bronze`** table we'll need to also update their DataStreamReader logic to ignore changes.
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

@@ -28,12 +28,12 @@
 
 # COMMAND ----------
 
-# MAGIC %run "../Includes/ade-setup"
+# MAGIC %run ../Includes/module-3/setup-lesson-3.04-ade_setup
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Execute the following cell to reset your `users` table.
+# MAGIC Execute the following cell to reset your **`users`** table.
 
 # COMMAND ----------
 
@@ -52,13 +52,13 @@ spark.sql(f"""
 
 # MAGIC %md
 # MAGIC ## ELT with Pseudonymization
-# MAGIC The data in the `user_info` topic contains complete row outputs from a Change Data Capture feed.
+# MAGIC The data in the **`user_info`** topic contains complete row outputs from a Change Data Capture feed.
 # MAGIC 
-# MAGIC There are three values for `update_type` present in the data: `new`, `update`, and `delete`.
+# MAGIC There are three values for **`update_type`** present in the data: **`new`**, **`update`**, and **`delete`**.
 # MAGIC 
-# MAGIC The `users` table will be implemented as a Type 1 table, so only the most recent value matters
+# MAGIC The **`users`** table will be implemented as a Type 1 table, so only the most recent value matters
 # MAGIC 
-# MAGIC Run the cell below to visually confirm that both `new` and `update` records contain all the fields we need for our `users` table.
+# MAGIC Run the cell below to visually confirm that both **`new`** and **`update`** records contain all the fields we need for our **`users`** table.
 
 # COMMAND ----------
 
@@ -92,12 +92,12 @@ display(usersDF)
 # MAGIC ## Deduplication with Windowed Ranking
 # MAGIC 
 # MAGIC We've previously explored some ways to remove duplicate records:
-# MAGIC - Using Delta Lake's `MERGE` syntax, we can update or insert records based on keys, matching new records with previously loaded data
-# MAGIC - `dropDuplicates` will remove exact duplicates within a table or incremental microbatch
+# MAGIC - Using Delta Lake's **`MERGE`** syntax, we can update or insert records based on keys, matching new records with previously loaded data
+# MAGIC - **`dropDuplicates`** will remove exact duplicates within a table or incremental microbatch
 # MAGIC 
-# MAGIC Now we have multiple records for a given primary key BUT these records are not identical. `dropDuplicates` will not work to remove these records, and we'll get an error from our merge statement if we have the same key present multiple times.
+# MAGIC Now we have multiple records for a given primary key BUT these records are not identical. **`dropDuplicates`** will not work to remove these records, and we'll get an error from our merge statement if we have the same key present multiple times.
 # MAGIC 
-# MAGIC Below, a third approach for removing duplicates is shown below using the [pySpark Window class](http://spark.apache.org/docs/latest/api/python/reference/api/pyspark.sql.Window.html?highlight=window#pyspark.sql.Window).
+# MAGIC Below, a third approach for removing duplicates is shown below using the <a href="http://spark.apache.org/docs/latest/api/python/reference/api/pyspark.sql.Window.html?highlight=window#pyspark.sql.Window" target="_blank">PySpark Window class</a>.
 
 # COMMAND ----------
 
@@ -111,19 +111,21 @@ display(rankedDF)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC As desired, we get only the newest (`rank == 1`) entry for each unique `user_id`.
+# MAGIC As desired, we get only the newest (**`rank == 1`**) entry for each unique **`user_id`**.
 # MAGIC 
 # MAGIC Unfortunately, if we try to apply this to a streaming read of our data, we'll learn that
 # MAGIC > Non-time-based windows are not supported on streaming DataFrames
 
 # COMMAND ----------
 
-streamingRankedDF = (spark.readStream.table("bronze")
-    .filter("topic = 'user_info'")
-    .dropDuplicates()
-    .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
-    .filter(F.col("update_type").isin(["new", "update"]))
-    .withColumn("rank", F.rank().over(window)).filter("rank == 1").drop("rank")
+streamingRankedDF = (spark
+                     .readStream
+                     .table("bronze")
+                     .filter("topic = 'user_info'")
+                     .dropDuplicates()
+                     .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
+                     .filter(F.col("update_type").isin(["new", "update"]))
+                     .withColumn("rank", F.rank().over(window)).filter("rank == 1").drop("rank")
                     )
   
 try:
@@ -133,7 +135,6 @@ try:
 except pyspark.sql.utils.AnalysisException as e:
     print("Failed as expected...")
     print(e)
-
 
 # COMMAND ----------
 
@@ -145,18 +146,18 @@ except pyspark.sql.utils.AnalysisException as e:
 # MAGIC %md
 # MAGIC ## Implementing Streaming Ranked De-duplication
 # MAGIC 
-# MAGIC As we saw previously, when apply `MERGE` logic with a Structured Streaming job, we need to use `foreachBatch` logic.
+# MAGIC As we saw previously, when apply **`MERGE`** logic with a Structured Streaming job, we need to use **`foreachBatch`** logic.
 # MAGIC 
 # MAGIC Recall that while we're inside a streaming microbatch, we interact with our data using batch syntax.
 # MAGIC 
-# MAGIC This means that if we can apply our ranked `Window` logic within our `foreachBatch` function, we can avoid the restriction throwing our error.
+# MAGIC This means that if we can apply our ranked **`Window`** logic within our **`foreachBatch`** function, we can avoid the restriction throwing our error.
 # MAGIC 
 # MAGIC The code below sets up all the incremental logic needed to load in the data in the correct schema from the bronze table. This includes:
-# MAGIC - Filter for the `user_info` topic
+# MAGIC - Filter for the **`user_info`** topic
 # MAGIC - Dropping identical records within the batch
-# MAGIC - Unpack all of the JSON fields from the `value` column into the correct schema
-# MAGIC - Update field names and types to match the `users` table schema
-# MAGIC - Use the salted hash function to cast the `user_id` to `alt_id`
+# MAGIC - Unpack all of the JSON fields from the **`value`** column into the correct schema
+# MAGIC - Update field names and types to match the **`users`** table schema
+# MAGIC - Use the salted hash function to cast the **`user_id`** to **`alt_id`**
 
 # COMMAND ----------
 
@@ -168,22 +169,20 @@ unpackedDF = (spark.readStream
     .dropDuplicates()
     .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
     .select(F.sha2(F.concat(F.col("user_id"), F.lit(salt)), 256).alias("alt_id"),
-        F.col('timestamp').cast("timestamp").alias("updated"),
-        F.to_date('dob','MM/dd/yyyy').alias('dob'),
-        'sex', 'gender','first_name','last_name',
-        'address.*', "update_type"))
+            F.col("timestamp").cast("timestamp").alias("updated"),
+            F.to_date("dob", "MM/dd/yyyy").alias("dob"), "sex", "gender", "first_name", "last_name", "address.*", "update_type"))
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The updated Window logic is provided below. Note that this is being applied to each `microBatchDF` to result in a local `rankedDF` that will be used for merging.
+# MAGIC The updated Window logic is provided below. Note that this is being applied to each **`microBatchDF`** to result in a local **`rankedDF`** that will be used for merging.
 # MAGIC  
-# MAGIC For our `MERGE` statement, we need to:
-# MAGIC - Match entries on our `alt_id`
+# MAGIC For our **`MERGE`** statement, we need to:
+# MAGIC - Match entries on our **`alt_id`**
 # MAGIC - Update all when matched **if** the new record has is newer than the previous entry
 # MAGIC - When not matched, insert all
 # MAGIC 
-# MAGIC As before, use `foreachBatch` to apply merge operations in Structured Streaming.
+# MAGIC As before, use **`foreachBatch`** to apply merge operations in Structured Streaming.
 
 # COMMAND ----------
 
@@ -227,11 +226,20 @@ def batch_rank_upsert(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The `users` table should only have 1 record for each unique ID.
+# MAGIC The **`users`** table should only have 1 record for each unique ID.
 
 # COMMAND ----------
 
 assert spark.table("users").count() == spark.table("users").select("alt_id").distinct().count()
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

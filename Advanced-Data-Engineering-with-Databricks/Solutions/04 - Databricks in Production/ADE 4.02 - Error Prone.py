@@ -10,7 +10,11 @@
 # MAGIC %md 
 # MAGIC # Parsing Errors
 # MAGIC 
-# MAGIC This code is going to throw several errors. Click on `Run All` above.
+# MAGIC This code is going to throw several errors. Click on **`Run All`** above.
+
+# COMMAND ----------
+
+# MAGIC %run ../Includes/module-4/setup-lesson-4.02
 
 # COMMAND ----------
 
@@ -21,7 +25,7 @@ x * 7
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that `Run All` execution mimics scheduled job execution; the `Command skipped` output we see below is the same we'll see in a job result.
+# MAGIC Note that **`Run All`** execution mimics scheduled job execution; the **`Command skipped`** output we see below is the same we'll see in a job result.
 
 # COMMAND ----------
 
@@ -92,6 +96,15 @@ display(df)
 # MAGIC AS (
 # MAGIC   SELECT dayofmonth(date) % 3 three_day_cycle FROM low_temps
 # MAGIC )
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

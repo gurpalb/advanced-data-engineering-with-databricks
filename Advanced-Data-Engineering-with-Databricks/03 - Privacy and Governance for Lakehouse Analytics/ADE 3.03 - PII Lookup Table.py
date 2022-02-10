@@ -30,14 +30,14 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/users-setup
+# MAGIC %run ../Includes/module-3/setup-lesson-3.03-users-setup
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Auto Load Bronze Data
 # MAGIC 
-# MAGIC The following cell defines and executes logic to incrementally ingest data into the `registered_users` table with Auto Loader.
+# MAGIC The following cell defines and executes logic to incrementally ingest data into the **`registered_users`** table with Auto Loader.
 # MAGIC 
 # MAGIC This logic is currently configured to process a single file each time a batch is triggered (currently every 10 seconds).
 # MAGIC 
@@ -66,7 +66,7 @@
 # MAGIC To do this:
 # MAGIC * Remove the option limiting the amount of files processed per trigger (this is ignored when executing a batch anyway)
 # MAGIC * Change the trigger type
-# MAGIC * Make sure to add `.awaitTermination()` to the end of your query to block execution of the next cell until the batch has completed
+# MAGIC * Make sure to add **`.awaitTermination()`** to the end of your query to block execution of the next cell until the batch has completed
 
 # COMMAND ----------
 
@@ -103,13 +103,13 @@ display(spark.table("registered_users"))
 
 # MAGIC %md
 # MAGIC ## Add a Salt to Natural Key
-# MAGIC We'll start by defining a salt, here in plain text. We'll combine this salt with our natural key, `user_id`, before applying a hash function to generate a pseudonymized key.
+# MAGIC We'll start by defining a salt, here in plain text. We'll combine this salt with our natural key, **`user_id`**, before applying a hash function to generate a pseudonymized key.
 # MAGIC 
 # MAGIC For greater security, we could upload the salt as a secret using the Databricks <a href="https://docs.databricks.com/security/secrets/secrets.html" target="_blank">Secrets</a> utility.
 
 # COMMAND ----------
 
-salt = 'BEANS'
+salt = "BEANS"
 
 # COMMAND ----------
 
@@ -128,9 +128,9 @@ display(spark.sql(f"""
 # MAGIC %md
 # MAGIC ## Register a SQL UDF
 # MAGIC 
-# MAGIC Create a SQL user-defined function to register this logic to the current database under the name `salted_hash`. This will allow this logic to be called by any user with appropriate permissions on this function. Make sure your UDF accepts two parameters: a `LONG` and a `STRING`. It should return a `STRING`.
+# MAGIC Create a SQL user-defined function to register this logic to the current database under the name **`salted_hash`**. This will allow this logic to be called by any user with appropriate permissions on this function. Make sure your UDF accepts two parameters: a **`LONG`** and a **`STRING`**. It should return a **`STRING`**.
 # MAGIC 
-# MAGIC Docs for SQL UDFs [here](https://docs.databricks.com/spark/latest/spark-sql/language-manual/sql-ref-syntax-ddl-create-sql-function.html).
+# MAGIC Docs for SQL UDFs <a href="https://docs.databricks.com/spark/latest/spark-sql/language-manual/sql-ref-syntax-ddl-create-sql-function.html" target="_blank">here</a>.
 
 # COMMAND ----------
 
@@ -158,11 +158,11 @@ assert spark.sql("SELECT sha2(concat(12,'BEANS'), 256) alt_id").collect() == spa
 
 # MAGIC %md
 # MAGIC ## Register Target Table
-# MAGIC The logic below creates the `user_lookup` table.
+# MAGIC The logic below creates the **`user_lookup`** table.
 # MAGIC 
-# MAGIC Here we're just creating our `user_lookup` table. In the next notebook, we'll use this pseudo-ID as the sole link to user PII.
+# MAGIC Here we're just creating our **`user_lookup`** table. In the next notebook, we'll use this pseudo-ID as the sole link to user PII.
 # MAGIC 
-# MAGIC By controlling access to the link between our `alt_id` and other natural keys, we'll be able to prevent linking PII to other user data throughout our system.
+# MAGIC By controlling access to the link between our **`alt_id`** and other natural keys, we'll be able to prevent linking PII to other user data throughout our system.
 
 # COMMAND ----------
 
@@ -180,9 +180,9 @@ spark.sql(f"""
 # MAGIC 
 # MAGIC The cell below includes the setting for the correct checkpoint path.
 # MAGIC 
-# MAGIC Define a function to apply the SQL UDF registered above to create your `alt_id` to the `user_id` from the `registered_users` table.
+# MAGIC Define a function to apply the SQL UDF registered above to create your **`alt_id`** to the **`user_id`** from the **`registered_users`** table.
 # MAGIC 
-# MAGIC Make sure you include all the necessary columns for the target `user_lookup` table. Configure your logic to execute as a triggered incremental batch.
+# MAGIC Make sure you include all the necessary columns for the target **`user_lookup`** table. Configure your logic to execute as a triggered incremental batch.
 
 # COMMAND ----------
 
@@ -219,7 +219,7 @@ display(spark.table("user_lookup"))
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The code below ingests all the remaining records to put 100 total users in the `user_lookup` table.
+# MAGIC The code below ingests all the remaining records to put 100 total users in the **`user_lookup`** table.
 
 # COMMAND ----------
 
@@ -232,6 +232,15 @@ display(spark.table("user_lookup"))
 
 # MAGIC %md
 # MAGIC We'll apply this same hashing method to process and store PII data in the next lesson.
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

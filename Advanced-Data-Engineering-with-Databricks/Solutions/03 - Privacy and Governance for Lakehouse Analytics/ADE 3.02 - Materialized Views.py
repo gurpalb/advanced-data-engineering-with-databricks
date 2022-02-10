@@ -12,7 +12,7 @@
 # MAGIC 
 # MAGIC Because the lakehouse combines on-demand compute resources with infinitely scalable cloud object storage to optimize cost and performance, the concept of a materialized view most closely maps to that of a gold table. Rather than caching the results to the view for quick access, results are stored in Delta Lake for efficient deserialization.
 # MAGIC 
-# MAGIC **NOTE**: Databricks SQL leverages [Delta caching and query caching](https://docs.databricks.com/sql/admin/query-caching.html#query-caching), so subsequent execution of queries will use cached results.
+# MAGIC **NOTE**: Databricks SQL leverages <a href="https://docs.databricks.com/sql/admin/query-caching.html#query-caching" target="_blank">Delta caching and query caching</a>, so subsequent execution of queries will use cached results.
 # MAGIC 
 # MAGIC Gold tables refer to highly refined, generally aggregate views of the data persisted to Delta Lake.
 # MAGIC 
@@ -37,22 +37,29 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/gold-setup
+# MAGIC %run ../Includes/module-3/setup-lesson-3.02-gold-setup
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC A helper function has been defined to process a new batch of data to the source tables used in this lesson. (Note: this may take around 2 minutes.)
+# MAGIC A number of helper functions has been defined to process a new batch of data to the source tables used in this lesson. (Note: this may take around 2 minutes.)
 
 # COMMAND ----------
 
-process_gold_sources()
+DA.data_factory.load()            # Load one new day for DA.paths.source_daily
+DA.process_bronze()               # Process through the bronze table
+DA.process_heart_rate_silver()    # Process the heart_rate_silver table
+DA.process_workouts_silver()      # Process the workouts_silver table
+DA.process_completed_workouts()   # Process the completed_workouts table
+DA.process_workout_bpm()          # Process the workout_bpm table
+DA.process_users()                # Process the users tables
+DA.process_user_bins()            # Create the user_bins table
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Explore Workout BPM
-# MAGIC Recall that our `workout_bpm` table has already matched all completed workouts to user bpm recordings.
+# MAGIC Recall that our **`workout_bpm`** table has already matched all completed workouts to user bpm recordings.
 # MAGIC 
 # MAGIC Explore this data below.
 
@@ -78,7 +85,7 @@ process_gold_sources()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC And now we can use our `user_lookup` table to match this back to our binned demographic information.
+# MAGIC And now we can use our **`user_lookup`** table to match this back to our binned demographic information.
 
 # COMMAND ----------
 
@@ -95,7 +102,7 @@ process_gold_sources()
 
 # MAGIC %md
 # MAGIC ## Perform an Incremental Batch Table Update
-# MAGIC Because our `workout_bpm` table was written as an append-only stream, we can update our aggregation using a streaming job as well.
+# MAGIC Because our **`workout_bpm`** table was written as an append-only stream, we can update our aggregation using a streaming job as well.
 
 # COMMAND ----------
 
@@ -108,23 +115,25 @@ spark.readStream.table("workout_bpm").createOrReplaceTempView("TEMP_workout_bpm"
 
 # COMMAND ----------
 
-(spark.sql("""
+user_bins_df = spark.sql("""
     SELECT workout_id, session_id, a.user_id, age, gender, city, state, min_bpm, avg_bpm, max_bpm, num_recordings
     FROM user_bins a
     INNER JOIN
       (SELECT user_id, workout_id, session_id, MIN(heartrate) min_bpm, MEAN(heartrate) avg_bpm, MAX(heartrate) max_bpm, COUNT(heartrate) num_recordings
       FROM TEMP_workout_bpm
       GROUP BY user_id, workout_id, session_id) b
-    ON a.user_id = b.user_id"""
-    ).writeStream
-        .format("delta")
-        .option("path", Paths.workoutBpmSummary)
-        .option("checkpointLocation", Paths.workoutBpmSummaryCheckpoint)
-        .outputMode("complete")
-        .trigger(once=True)
-        .table("workout_bpm_summary")
-        .awaitTermination()
-    )
+    ON a.user_id = b.user_id
+    """)
+
+(user_bins_df
+     .writeStream
+     .format("delta")
+     .option("checkpointLocation", f"{DA.paths.checkpoints}/workout_bpm_summary.chk")
+     .option("path", f"{DA.paths.user_db}/workout_bpm_summary.delta")
+     .outputMode("complete")
+     .trigger(once=True)
+     .table("workout_bpm_summary")
+     .awaitTermination())
 
 # COMMAND ----------
 
@@ -133,12 +142,21 @@ spark.readStream.table("workout_bpm").createOrReplaceTempView("TEMP_workout_bpm"
 # MAGIC 
 # MAGIC Note that the primary benefit to scheduling updates to gold tables as opposed to defining views is the ability to control costs associated with materializing results.
 # MAGIC 
-# MAGIC While returning results from this table will use some compute to scan the `workout_bpm_summary` table, this design avoids having to scan and join files from multiple tables every time this data is referenced.
+# MAGIC While returning results from this table will use some compute to scan the **`workout_bpm_summary`** table, this design avoids having to scan and join files from multiple tables every time this data is referenced.
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC SELECT * FROM workout_bpm_summary
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 
