@@ -33,8 +33,13 @@ DA.process_bronze()               # Process through the bronze table
 # DA.process_completed_workouts()   # Process the completed_workouts table
 # DA.process_workout_bpm()
 
-# DA.process_users()
-# build_user_bins()
+DA.process_users()
+
+# I'm too lazy to refactor this out - JDP
+spark.sql("DROP TABLE delete_requests") 
+dbutils.fs.rm(f"{DA.paths.user_db}/delete_requests", True)
+
+# DA.process_user_bins()
 
 # COMMAND ----------
 

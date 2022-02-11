@@ -58,6 +58,8 @@
 
 # COMMAND ----------
 
+from pyspark.sql import functions as F
+
 salt = "BEANS"
 
 schema = """
@@ -73,20 +75,18 @@ schema = """
         street_address: STRING, 
         city: STRING, 
         state: STRING, 
-        zip: INT
-    >"""
+        zip: INT>"""
 
-requestsDF = (spark.readStream.table("bronze")
-    .filter("topic = 'user_info'")
-    .dropDuplicates()
-    .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*", F.col('v.timestamp').cast("timestamp").alias("requested"))
-    .filter("update_type = 'delete'")
-    .select(F.sha2(F.concat(F.col("user_id"), F.lit(salt)), 256).alias("alt_id"),
-        "requested",
-        F.date_add("requested", 30).alias("deadline"), 
-        F.lit("requested").alias("status")
-           )
-   )
+requests_df = (spark.readStream
+                    .table("bronze")
+                    .filter("topic = 'user_info'")
+                    .dropDuplicates()
+                    .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*", F.col('v.timestamp').cast("timestamp").alias("requested"))
+                    .filter("update_type = 'delete'")
+                    .select(F.sha2(F.concat(F.col("user_id"), F.lit(salt)), 256).alias("alt_id"),
+                            "requested",
+                            F.date_add("requested", 30).alias("deadline"), 
+                            F.lit("requested").alias("status")))
 
 # COMMAND ----------
 
@@ -95,7 +95,8 @@ requestsDF = (spark.readStream.table("bronze")
 
 # COMMAND ----------
 
-display(requestsDF)
+display(requests_df, streamName = "requests")
+DA.block_until_stream_is_ready(name = "requests")
 
 # COMMAND ----------
 
@@ -120,15 +121,14 @@ display(requestsDF)
 
 # COMMAND ----------
 
-(requestsDF
-    .writeStream
-    .outputMode("append")
-    .option("checkpointLocation", Paths.deleteRequestsCheckpoint)
-    .option("userMetadata", "Requests processed interactively")
-    .option("path", Paths.deleteRequests)
-    .trigger(once=True)
-    .table("delete_requests")
-    .awaitTermination())
+query = (requests_df.writeStream
+                    .outputMode("append")
+                    .option("checkpointLocation", f"{DA.paths.checkpoints}/delete_requests")
+                    .option("userMetadata", "Requests processed interactively")
+                    .trigger(once=True)
+                    .table("delete_requests"))
+
+query.awaitTermination()
 
 # COMMAND ----------
 
@@ -219,10 +219,10 @@ print(start_version)
 # COMMAND ----------
 
 deleteDF = (spark.readStream
-    .format("delta")
-    .option("readChangeFeed", "true")
-    .option("startingVersion", start_version)
-    .table("user_lookup"))
+                 .format("delta")
+                 .option("readChangeFeed", "true")
+                 .option("startingVersion", start_version)
+                 .table("user_lookup"))
 
 # COMMAND ----------
 
@@ -265,17 +265,20 @@ def process_deletes(microBatchDF, batchId):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Recall that this workload is being driven by incremental changes to the **`user_lookup`** table (tracked through the Change Data Feed). Executing the following cell will propagate deletes to a single table to multiple tables throughout the lakehouse.
+# MAGIC Recall that this workload is being driven by incremental changes to the **`user_lookup`** table (tracked through the Change Data Feed).
+# MAGIC 
+# MAGIC Executing the following cell will propagate deletes to a single table to multiple tables throughout the lakehouse.
 
 # COMMAND ----------
 
-(deleteDF.writeStream
-    .foreachBatch(process_deletes)
-    .outputMode("update")
-    .option("checkpointLocation", Paths.checkpointPath + "/deletes")
-    .trigger(once=True)
-    .start()
-    .awaitTermination())
+query = (deleteDF.writeStream
+                 .foreachBatch(process_deletes)
+                 .outputMode("update")
+                 .option("checkpointLocation", f"{DA.paths.checkpoints}/deletes")
+                 .trigger(once=True)
+                 .start())
+
+query.awaitTermination()
 
 # COMMAND ----------
 
@@ -345,21 +348,12 @@ def process_deletes(microBatchDF, batchId):
 
 # COMMAND ----------
 
-display(spark.read
-    .option("readChangeFeed", "true")
-    .option("startingVersion", start_version)
-    .table("user_lookup")
-    .filter("_change_type = 'delete'"))
-
-# COMMAND ----------
-
-# MAGIC %md Stop any streams we may have left running
-
-# COMMAND ----------
-
-for stream in spark.streams.active:
-    stream.stop()
-    stream.awaitTermination()
+df = (spark.read
+           .option("readChangeFeed", "true")
+           .option("startingVersion", start_version)
+           .table("user_lookup")
+           .filter("_change_type = 'delete'"))
+display(df)
 
 # COMMAND ----------
 

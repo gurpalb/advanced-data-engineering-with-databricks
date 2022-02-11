@@ -31,9 +31,8 @@ DA.process_bronze()               # Process through the bronze table
 DA.process_heart_rate_silver()    # Process the heart_rate_silver table
 DA.process_workouts_silver()      # Process the workouts_silver table
 DA.process_completed_workouts()   # Process the completed_workouts table
-
-process_users()
-build_user_bins()
+DA.process_users()
+DA.process_user_bins()
 
 # COMMAND ----------
 

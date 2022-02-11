@@ -101,8 +101,12 @@ class DBAcademyHelper():
                 
         print(f"\nSetup completed in {int(time.time())-self.start} seconds")
         
-    def block_until_stream_is_ready(self, query, min_batches=2):
+    def block_until_stream_is_ready(self, query=None, name=None, min_batches=2):
         import time
+        
+        for q in spark.streams.active:
+            query = q if q.name == name and name is not None else query
+        
         while len(query.recentProgress) < min_batches:
             time.sleep(5) # Give it a couple of seconds
 

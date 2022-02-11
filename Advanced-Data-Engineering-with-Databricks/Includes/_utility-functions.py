@@ -81,10 +81,12 @@ class DailyDataFactory:
         
         if self.batch > self.max_batch:
             print("Data source exhausted\n")
+            
         elif continuous == True:
             print("Loading all streaming data", end="...")
             self.load_batch(self.batch, self.max_batch)
             self.batch = self.max_batch+1
+            
         else:
             if not silent: print(f"Loading batch #{self.batch} to daily stream", end="...")
             self.load_batch(self.batch, self.batch+1)
@@ -584,7 +586,7 @@ def _process_user_bins():
                 "gender", 
                 "city", 
                 "state")
-         .write
+        .write
         .format("delta")
         .option("path", f"{DA.paths.user_db}/user_bins")
         .mode("overwrite")

@@ -34,7 +34,7 @@ DA.process_bronze()               # Process through the bronze table
 # DA.process_workout_bpm()
 
 # DA.process_users()
-# build_user_bins()
+# DA.process_user_bins()
 
 # COMMAND ----------
 

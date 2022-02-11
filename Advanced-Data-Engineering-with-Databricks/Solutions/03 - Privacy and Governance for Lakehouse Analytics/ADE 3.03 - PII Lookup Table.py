@@ -45,18 +45,16 @@
 
 # COMMAND ----------
 
-(spark.readStream
-    .schema("device_id LONG, mac_address STRING, registration_timestamp DOUBLE, user_id LONG")
-    .format("cloudFiles")
-    .option("cloudFiles.format", "json")
-    .option("cloudFiles.maxFilesPerTrigger", 1)
-    .load(Paths.rawUserReg)
-    .writeStream
-    .option("checkpointLocation", Paths.registeredUsersCheckpointPath)
-    .trigger(processingTime="10 seconds")
-    .option("path", Paths.registeredUsers)
-    .table("registered_users")
-)
+query = (spark.readStream
+              .schema("device_id LONG, mac_address STRING, registration_timestamp DOUBLE, user_id LONG")
+              .format("cloudFiles")
+              .option("cloudFiles.format", "json")
+              .option("cloudFiles.maxFilesPerTrigger", 1)
+              .load(DA.paths.raw_user_reg)
+              .writeStream
+              .option("checkpointLocation", f"{DA.paths.checkpoints}/registered_users")
+              .trigger(processingTime="10 seconds")
+              .table("registered_users"))
 
 # COMMAND ----------
 
@@ -65,24 +63,34 @@
 # MAGIC 
 # MAGIC To do this:
 # MAGIC * Remove the option limiting the amount of files processed per trigger (this is ignored when executing a batch anyway)
-# MAGIC * Change the trigger type
+# MAGIC * Change the trigger type to "once"
 # MAGIC * Make sure to add **`.awaitTermination()`** to the end of your query to block execution of the next cell until the batch has completed
+
+# COMMAND ----------
+
+# MAGIC %md Before we start, make sure to stop the existing stream
+
+# COMMAND ----------
+
+query.stop()
+query.awaitTermination()
 
 # COMMAND ----------
 
 # ANSWER
 def ingest_user_reg():
-    (spark.readStream
-        .schema("device_id LONG, mac_address STRING, registration_timestamp DOUBLE, user_id LONG")
-        .format("cloudFiles")
-        .option("cloudFiles.format", "json")
-        .load(Paths.rawUserReg)
-        .writeStream
-        .option("checkpointLocation", Paths.registeredUsersCheckpointPath)
-        .trigger(once=True)
-        .option("path", Paths.registeredUsers)
-        .table("registered_users")
-        .awaitTermination())
+    query = (spark.readStream
+                  .schema("device_id LONG, mac_address STRING, registration_timestamp DOUBLE, user_id LONG")
+                  .format("cloudFiles")
+                  .option("cloudFiles.format", "json")
+                  .load(DA.paths.raw_user_reg)
+                  .writeStream
+                  .option("checkpointLocation", f"{DA.paths.checkpoints}/registered_users")
+                  .trigger(once=True)
+                  .option("path", f"{DA.paths.user_db}/registered_users")
+                  .table("registered_users"))
+    
+    query.awaitTermination()
 
 # COMMAND ----------
 
@@ -105,7 +113,7 @@ display(spark.table("registered_users"))
 
 # COMMAND ----------
 
-Raw.arrival()
+DA.data_factory.load()
 ingest_user_reg()
 display(spark.table("registered_users"))
 
@@ -120,6 +128,7 @@ display(spark.table("registered_users"))
 # COMMAND ----------
 
 salt = "BEANS"
+spark.conf.set("my.salt", salt)
 
 # COMMAND ----------
 
@@ -128,10 +137,9 @@ salt = "BEANS"
 
 # COMMAND ----------
 
-display(spark.sql(f"""
-  SELECT *, sha2(concat(user_id,"{salt}"), 256)
-  FROM registered_users
-"""))
+# MAGIC %sql
+# MAGIC SELECT *, sha2(concat(user_id,"${my.salt}"), 256)
+# MAGIC FROM registered_users
 
 # COMMAND ----------
 
@@ -156,7 +164,9 @@ display(spark.sql(f"""
 
 # COMMAND ----------
 
-assert spark.sql("SELECT sha2(concat(12,'BEANS'), 256) alt_id").collect() == spark.sql("SELECT salted_hash(12,'BEANS') alt_id").collect()
+set_a = spark.sql("SELECT sha2(concat(12,'BEANS'), 256) alt_id").collect()
+set_b = spark.sql("SELECT salted_hash(12,'BEANS') alt_id").collect()
+assert set_a == set_b
 
 # COMMAND ----------
 
@@ -177,12 +187,11 @@ assert spark.sql("SELECT sha2(concat(12,'BEANS'), 256) alt_id").collect() == spa
 
 # COMMAND ----------
 
-spark.sql(f"""
-  CREATE TABLE IF NOT EXISTS user_lookup
-  (alt_id string, device_id long, mac_address string, user_id long)
-  USING DELTA 
-  LOCATION '{Paths.userLookup}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS user_lookup
+# MAGIC (alt_id string, device_id long, mac_address string, user_id long)
+# MAGIC USING DELTA 
+# MAGIC LOCATION '${da.paths.working_dir}/user_lookup'
 
 # COMMAND ----------
 
@@ -199,14 +208,15 @@ spark.sql(f"""
 
 # ANSWER
 def load_user_lookup():
-    (spark.readStream
-        .table("registered_users")
-        .selectExpr(f"salted_hash(user_id,'{salt}') AS alt_id", "device_id", "mac_address", "user_id")
-        .writeStream
-        .option("checkpointLocation", Paths.userLookupCheckpointPath)
-        .trigger(once=True)
-        .table("user_lookup")
-        .awaitTermination())
+    query = (spark.readStream
+                  .table("registered_users")
+                  .selectExpr(f"salted_hash(user_id,'{salt}') AS alt_id", "device_id", "mac_address", "user_id")
+                  .writeStream
+                  .option("checkpointLocation", f"{DA.paths.checkpoints}/user_lookup")
+                  .trigger(once=True)
+                  .table("user_lookup"))
+    
+    query.awaitTermination()
 
 # COMMAND ----------
 
@@ -216,6 +226,7 @@ def load_user_lookup():
 # COMMAND ----------
 
 load_user_lookup()
+
 display(spark.table("user_lookup"))
 
 # COMMAND ----------
@@ -225,9 +236,11 @@ display(spark.table("user_lookup"))
 
 # COMMAND ----------
 
-Raw.arrival()
+DA.data_factory.load()
+
 ingest_user_reg()
 load_user_lookup()
+
 display(spark.table("user_lookup"))
 
 # COMMAND ----------
@@ -237,9 +250,11 @@ display(spark.table("user_lookup"))
 
 # COMMAND ----------
 
-Raw.arrival(continuous=True)
+DA.data_factory.load(continuous=True)
+
 ingest_user_reg()
 load_user_lookup()
+
 display(spark.table("user_lookup"))
 
 # COMMAND ----------

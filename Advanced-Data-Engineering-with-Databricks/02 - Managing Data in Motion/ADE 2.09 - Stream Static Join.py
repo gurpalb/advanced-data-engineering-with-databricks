@@ -43,7 +43,9 @@
 
 # COMMAND ----------
 
-spark.readStream.table("heart_rate_silver").createOrReplaceTempView("TEMP_heart_rate_silver")
+(spark.readStream
+      .table("heart_rate_silver")
+      .createOrReplaceTempView("TEMP_heart_rate_silver"))
 
 # COMMAND ----------
 

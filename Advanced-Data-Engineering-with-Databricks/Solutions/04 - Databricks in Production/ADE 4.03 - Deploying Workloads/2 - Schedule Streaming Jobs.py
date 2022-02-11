@@ -30,7 +30,7 @@
 # MAGIC The recomended cluster configuration for this demo includes:
 # MAGIC * The latest LTS version of the DBR
 # MAGIC * A single-node cluster
-# MAGIC * A single VM with 32 cores
+# MAGIC * A single VM with ~32 cores
 
 # COMMAND ----------
 
@@ -382,30 +382,21 @@ users_silver(source_table="bronze_dev", once=once)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Loading Data
-# MAGIC A close observation will reveal that no data is actually being processed.
-# MAGIC 
-# MAGIC This is because the source directory passed to **`process_bronze()`** is empty.
-# MAGIC 
-# MAGIC To load some data, and watch this stream in action, open [99 - Data Factory]($./99 - Data Factory) which, when executed, will slowly feed this stream.
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC Unlike other lessons, we will **NOT** be be executing our **`DA.cleanup()`** command<br/>
 # MAGIC as we want these assets to persist through all the notebooks in this demo.
 # MAGIC 
-# MAGIC However, we don't want to leave this demo running forever so we will stop all streams after 5 minutes.<br/>
+# MAGIC However, we don't want to leave this demo running forever so we will stop all streams after 30 minutes.<br/>
 # MAGIC This is approximately the same amount of time that our Data Factory will run from start to finish.
 
 # COMMAND ----------
 
+# ANSWER
 import time
 time.sleep(5*60)
 
 # COMMAND ----------
 
-# MAGIC %md And now that the five minutes have passed, we will stop all streams.
+# MAGIC %md And now that the 30 minutes have passed, we will stop all streams.
 
 # COMMAND ----------
 

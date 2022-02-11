@@ -11,7 +11,7 @@
 # MAGIC 
 # MAGIC * Name: **Advanced Data Engineering With Databricks**
 # MAGIC * Version:  **2.2.0-BETA**
-# MAGIC * Built On: **Feb 10, 2022 at 02:42:08 UTC**
+# MAGIC * Built On: **Feb 11, 2022 at 00:08:05 UTC**
 
 # COMMAND ----------
 

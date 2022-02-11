@@ -37,16 +37,11 @@
 
 # COMMAND ----------
 
-spark.sql("DROP TABLE IF EXISTS users")
-dbutils.fs.rm(Paths.users, True)
-dbutils.fs.rm(Paths.usersCheckpointPath, True)
-
-spark.sql(f"""
-  CREATE TABLE users
-  (alt_id STRING, dob DATE, sex STRING, gender STRING, first_name STRING, last_name STRING, street_address STRING, city STRING, state STRING, zip INT, updated TIMESTAMP)
-  USING DELTA
-  LOCATION '{Paths.users}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE users
+# MAGIC (alt_id STRING, dob DATE, sex STRING, gender STRING, first_name STRING, last_name STRING, street_address STRING, city STRING, state STRING, zip INT, updated TIMESTAMP)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.working_dir}/users'
 
 # COMMAND ----------
 
@@ -62,6 +57,8 @@ spark.sql(f"""
 
 # COMMAND ----------
 
+from pyspark.sql import functions as F
+
 schema = """
     user_id LONG, 
     update_type STRING, 
@@ -75,16 +72,14 @@ schema = """
         street_address: STRING, 
         city: STRING, 
         state: STRING, 
-        zip: INT
-    >"""
+        zip: INT>"""
 
-usersDF = (spark.table("bronze")
-    .filter("topic = 'user_info'")
-    .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
-    .filter(F.col("update_type").isin(["new", "update"]))
-          )
+users_df = (spark.table("bronze")
+                 .filter("topic = 'user_info'")
+                 .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
+                 .filter(F.col("update_type").isin(["new", "update"])))
 
-display(usersDF)
+display(users_df)
 
 # COMMAND ----------
 
@@ -104,9 +99,9 @@ display(usersDF)
 from pyspark.sql.window import Window
 
 window = Window.partitionBy("user_id").orderBy(F.col("timestamp").desc())
-rankedDF = usersDF.dropDuplicates().withColumn("rank", F.rank().over(window)).filter("rank == 1").drop("rank")
+ranked_df = users_df.dropDuplicates().withColumn("rank", F.rank().over(window)).filter("rank == 1").drop("rank")
 
-display(rankedDF)
+display(ranked_df)
 
 # COMMAND ----------
 
@@ -115,26 +110,22 @@ display(rankedDF)
 # MAGIC 
 # MAGIC Unfortunately, if we try to apply this to a streaming read of our data, we'll learn that
 # MAGIC > Non-time-based windows are not supported on streaming DataFrames
+# MAGIC 
+# MAGIC Uncomment and run the following cell to see this error in action:
 
 # COMMAND ----------
 
-streamingRankedDF = (spark
-                     .readStream
-                     .table("bronze")
-                     .filter("topic = 'user_info'")
-                     .dropDuplicates()
-                     .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
-                     .filter(F.col("update_type").isin(["new", "update"]))
-                     .withColumn("rank", F.rank().over(window)).filter("rank == 1").drop("rank")
-                    )
-  
-try:
-    display(streamingRankedDF)
-    raise Exception("Expected failure.")
+# ranked_df = (spark.readStream
+#                   .table("bronze")
+#                   .filter("topic = 'user_info'")
+#                   .dropDuplicates()
+#                   .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
+#                   .select("v.*")
+#                   .filter(F.col("update_type").isin(["new", "update"]))
+#                   .withColumn("rank", F.rank().over(window))
+#                   .filter("rank == 1").drop("rank"))
 
-except pyspark.sql.utils.AnalysisException as e:
-    print("Failed as expected...")
-    print(e)
+# display(ranked_df)
 
 # COMMAND ----------
 
@@ -163,19 +154,20 @@ except pyspark.sql.utils.AnalysisException as e:
 
 salt = "BEANS"
 
-unpackedDF = (spark.readStream
-    .table("bronze")
-    .filter("topic = 'user_info'")
-    .dropDuplicates()
-    .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
-    .select(F.sha2(F.concat(F.col("user_id"), F.lit(salt)), 256).alias("alt_id"),
-            F.col("timestamp").cast("timestamp").alias("updated"),
-            F.to_date("dob", "MM/dd/yyyy").alias("dob"), "sex", "gender", "first_name", "last_name", "address.*", "update_type"))
+unpacked_df = (spark.readStream
+                    .table("bronze")
+                    .filter("topic = 'user_info'")
+                    .dropDuplicates()
+                    .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
+                    .select("v.*")
+                    .select(F.sha2(F.concat(F.col("user_id"), F.lit(salt)), 256).alias("alt_id"),
+                            F.col("timestamp").cast("timestamp").alias("updated"),
+                            F.to_date("dob", "MM/dd/yyyy").alias("dob"), "sex", "gender", "first_name", "last_name", "address.*", "update_type"))
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC The updated Window logic is provided below. Note that this is being applied to each **`microBatchDF`** to result in a local **`rankedDF`** that will be used for merging.
+# MAGIC %md <123:324:34>
+# MAGIC The updated Window logic is provided below. Note that this is being applied to each **`micro_batch_df`** to result in a local **`ranked_df`** that will be used for merging.
 # MAGIC  
 # MAGIC For our **`MERGE`** statement, we need to:
 # MAGIC - Match entries on our **`alt_id`**
@@ -215,13 +207,14 @@ def batch_rank_upsert(microBatchDF, batchId):
 
 # COMMAND ----------
 
-(unpackedDF.writeStream
-    .foreachBatch(batch_rank_upsert)
-    .outputMode("update")
-    .option("checkpointLocation", Paths.usersCheckpointPath)
-    .trigger(once=True)
-    .start()
-    .awaitTermination())
+query = (unpacked_df.writeStream
+                    .foreachBatch(batch_rank_upsert)
+                    .outputMode("update")
+                    .option("checkpointLocation", f"{DA.paths.checkpoints}/batch_rank_upsert")
+                    .trigger(once=True)
+                    .start())
+
+query.awaitTermination()
 
 # COMMAND ----------
 
@@ -230,7 +223,9 @@ def batch_rank_upsert(microBatchDF, batchId):
 
 # COMMAND ----------
 
-assert spark.table("users").count() == spark.table("users").select("alt_id").distinct().count()
+count_a = spark.table("users").count()
+count_b = spark.table("users").select("alt_id").distinct().count()
+assert count_a == count_b
 
 # COMMAND ----------
 

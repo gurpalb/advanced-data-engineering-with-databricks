@@ -39,11 +39,16 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Our Delta table is partitioned by two fields. Our top level partition is the **`topic`** column. Run the cell to note the 3 partition directories (and the Delta Log directory) that collectively comprise our **`bronze`** table.
+# MAGIC Our Delta table is partitioned by two fields. 
+# MAGIC 
+# MAGIC Our top level partition is the **`topic`** column. 
+# MAGIC 
+# MAGIC Run the cell to note the 3 partition directories (and the Delta Log directory) that collectively comprise our **`bronze`** table.
 
 # COMMAND ----------
 
-dbutils.fs.ls(Paths.bronzeTable)
+files = dbutils.fs.ls(f"{DA.paths.user_db}/bronze")
+display(files)
 
 # COMMAND ----------
 
@@ -52,7 +57,8 @@ dbutils.fs.ls(Paths.bronzeTable)
 
 # COMMAND ----------
 
-dbutils.fs.ls(Paths.bronzeTable + "/topic=user_info")
+files = dbutils.fs.ls(f"{DA.paths.user_db}/bronze/topic=user_info")
+display(files)
 
 # COMMAND ----------
 
@@ -61,7 +67,12 @@ dbutils.fs.ls(Paths.bronzeTable + "/topic=user_info")
 
 # COMMAND ----------
 
-spark.table("bronze").filter("topic='user_info'").filter("week_part<='2019-48'").count()
+total = (spark.table("bronze")
+              .filter("topic='user_info'")
+              .filter("week_part<='2019-48'")
+              .count())
+         
+print(f"Total: {total}")
 
 # COMMAND ----------
 
@@ -69,21 +80,24 @@ spark.table("bronze").filter("topic='user_info'").filter("week_part<='2019-48'")
 # MAGIC ## Archiving Data
 # MAGIC If a company wishes to maintain an archive of historic records (but only maintain recent records in production tables), cloud-native settings for auto-archiving data can be configured to move data files automatically to lower-cost storage locations.
 # MAGIC 
-# MAGIC The cell below simulates this process (here using copy instead of move). Note that because only the data files and partition directories are being relocated, the resultant table will be Parquet by default.
+# MAGIC The cell below simulates this process (here using copy instead of move). 
+# MAGIC 
+# MAGIC Note that because only the data files and partition directories are being relocated, the resultant table will be Parquet by default.
 # MAGIC 
 # MAGIC **NOTE**: For best performance, directories should have **`OPTIMIZE`** run to condense small files. Because valid and stale data files are stored side-by-side in Delta Lake files, partitions should also have **`VACUUM`** executed prior to moving any Delta Lake data to a pure Parquet table to ensure only valid files are copied.
 
 # COMMAND ----------
 
-spark.sql("DROP TABLE IF EXISTS user_info_archived")
-dbutils.fs.rm(Paths.basePath + "/pii_archive", True)
+archive_path = f"{DA.paths.working_dir}/pii_archive"
+source_path = f"{DA.paths.user_db}/bronze/topic=user_info"
 
-[dbutils.fs.cp(x[0], Paths.basePath + "/pii_archive/" + x[1], True) for x in dbutils.fs.ls(Paths.bronzeTable + "/topic=user_info") if x[1][-8:-1] <= '2019-48'];
+files = dbutils.fs.ls(source_path)
+[dbutils.fs.cp(f[0], f"{archive_path}/{f[1]}", True) for f in files if f[1][-8:-1] <= '2019-48'];
 
 spark.sql(f"""
   CREATE TABLE IF NOT EXISTS user_info_archived
   USING parquet
-  LOCATION '{Paths.basePath + "/pii_archive/"}'
+  LOCATION '{archive_path}'
 """)
 
 spark.sql("MSCK REPAIR TABLE user_info_archived")
@@ -97,7 +111,8 @@ display(spark.sql("SELECT COUNT(*) FROM user_info_archived"))
 
 # COMMAND ----------
 
-dbutils.fs.ls(Paths.basePath + "/pii_archive/")
+files = dbutils.fs.ls(archive_path)
+display(files)
 
 # COMMAND ----------
 
@@ -127,11 +142,16 @@ dbutils.fs.ls(Paths.basePath + "/pii_archive/")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC When deleting along partition boundaries, we don't write out new data files; recording the files as removed in the Delta log is sufficient. However, file deletion will not actually occur until we **`VACUUM`** our table. Note that all of our week partitions still exist in our **`user_info`** directory and that data files still exist in each week directory.
+# MAGIC When deleting along partition boundaries, we don't write out new data files; recording the files as removed in the Delta log is sufficient. 
+# MAGIC 
+# MAGIC However, file deletion will not actually occur until we **`VACUUM`** our table. 
+# MAGIC 
+# MAGIC Note that all of our week partitions still exist in our **`user_info`** directory and that data files still exist in each week directory.
 
 # COMMAND ----------
 
-dbutils.fs.ls(Paths.bronzeTable + "/topic=user_info/week_part=2019-48")
+files = dbutils.fs.ls(f"{source_path}/week_part=2019-48")
+display(files)
 
 # COMMAND ----------
 
@@ -183,18 +203,12 @@ spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", True)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that empty directories will eventually be cleaned up with **`VACUUM`**, but may not always be deleted as they are emptied of data files. 
-# MAGIC 
-# MAGIC The cell below attempts to list the directory for week 48 of 2019 for the **`user_info`** topic. If it fails, it will list all the week partition directories left in this topic. 
-# MAGIC 
-# MAGIC Either of these list operations will demonstrate that we have successfully committed the deletes against our tombstoned files.
+# MAGIC Note that empty directories will eventually be cleaned up with **`VACUUM`**, but may not always be deleted as they are emptied of data files.
 
 # COMMAND ----------
 
-try:
-    print(dbutils.fs.ls(Paths.bronzeTable + "/topic=user_info/week_part=2019-48"))
-except:
-    display(dbutils.fs.ls(Paths.bronzeTable + "/topic=user_info"))
+files = dbutils.fs.ls(source_path)
+display(files)
 
 # COMMAND ----------
 
@@ -224,9 +238,7 @@ except:
 # MAGIC   FROM bronze 
 # MAGIC   WHERE topic='user_info'
 # MAGIC   
-# MAGIC   UNION 
-# MAGIC   
-# MAGIC   SELECT * FROM user_info_archived) 
+# MAGIC   UNION SELECT * FROM user_info_archived) 
 # MAGIC   
 # MAGIC SELECT COUNT(*) FROM full_bronze_user_info
 
@@ -244,7 +256,7 @@ except:
 
 # COMMAND ----------
 
-from pyspark.sql.window import Window
+from pyspark.sql import functions as F
 
 schema = """
     user_id LONG, 
@@ -264,23 +276,23 @@ schema = """
 
 salt = "BEANS"
 
-unpackedDF = (spark.readStream
-    .option("ignoreDeletes", True)     # This is new!
-    .table("bronze")
-    .filter("topic = 'user_info'")
-    .dropDuplicates()
-    .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
-    .select(F.sha2(F.concat(F.col("user_id"), F.lit(salt)), 256).alias("alt_id"),
-        F.col('timestamp').cast("timestamp").alias("updated"),
-        F.to_date('dob','MM/dd/yyyy').alias('dob'),
-        'sex', 'gender','first_name','last_name',
-        'address.*', "update_type"))
+unpacked_df = (spark.readStream
+                    .option("ignoreDeletes", True)     # This is new!
+                    .table("bronze")
+                    .filter("topic = 'user_info'")
+                    .dropDuplicates()
+                    .select(F.from_json(F.col("value").cast("string"), schema).alias("v")).select("v.*")
+                    .select(F.sha2(F.concat(F.col("user_id"), F.lit(salt)), 256).alias("alt_id"),
+                            F.col('timestamp').cast("timestamp").alias("updated"),
+                            F.to_date('dob','MM/dd/yyyy').alias('dob'),
+                            'sex', 'gender','first_name','last_name','address.*', "update_type"))
 
 
-window = Window.partitionBy("alt_id").orderBy(F.col("updated").desc())
 
 def batch_rank_upsert(microBatchDF, batchId):
-    appId = "batch_rank_upsert"
+    from pyspark.sql.window import Window
+    
+    window = Window.partitionBy("alt_id").orderBy(F.col("updated").desc())
     
     (microBatchDF
         .filter(F.col("update_type").isin(["new", "update"]))
@@ -299,13 +311,14 @@ def batch_rank_upsert(microBatchDF, batchId):
 
 # COMMAND ----------
 
-(unpackedDF.writeStream
-    .foreachBatch(batch_rank_upsert)
-    .outputMode("update")
-    .option("checkpointLocation", Paths.usersCheckpointPath)
-    .trigger(once=True)
-    .start()
-    .awaitTermination())    
+query = (unpacked_df.writeStream
+                    .foreachBatch(batch_rank_upsert)
+                    .outputMode("update")
+                    .option("checkpointLocation", f"{DA.paths.checkpoints}/batch_rank_upsert")
+                    .trigger(once=True)
+                    .start())    
+
+query.awaitTermination()
 
 # COMMAND ----------
 
@@ -324,8 +337,11 @@ def batch_rank_upsert(microBatchDF, batchId):
 
 # COMMAND ----------
 
-max_version = max([file.name for file in dbutils.fs.ls(Paths.users + "/_delta_log") if file.name.endswith(".json")])
-display(spark.read.json(Paths.users + f"/_delta_log/{max_version}"))
+users_log_path = f"{DA.paths.user_db}/users/_delta_log"
+files = dbutils.fs.ls(users_log_path)
+
+max_version = max([file.name for file in files if file.name.endswith(".json")])
+display(spark.read.json(f"{users_log_path}/{max_version}"))
 
 # COMMAND ----------
 

@@ -166,6 +166,20 @@
 
 # COMMAND ----------
 
+# MAGIC %md # Load Sample Data
+# MAGIC Note that the following cell will run a scrpt that continues to execute for approximately 30 minutes.
+# MAGIC 
+# MAGIC This will land batches of data to the location that our **`bronze`** table is currently configured to load data from.
+# MAGIC 
+# MAGIC This will provide an idea of how data is flowing through the piplines.
+
+# COMMAND ----------
+
+# ANSWER
+DA.data_factory.load(from_batch=0, batch_delay=0)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Unlike other lessons, we will **NOT** be be executing our **`DA.cleanup()`** command<br/>
 # MAGIC as we want these assets to persist through all the notebooks in this demo.

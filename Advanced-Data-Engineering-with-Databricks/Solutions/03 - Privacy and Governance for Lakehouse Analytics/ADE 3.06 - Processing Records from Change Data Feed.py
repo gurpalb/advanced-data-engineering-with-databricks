@@ -42,11 +42,11 @@
 # MAGIC 
 # MAGIC The following code defines some paths, a demo database, and clears out previous runs of the demo.
 # MAGIC 
-# MAGIC It also defines a variable **`Raw`** that we'll use to land raw data in our source directory, allowing us to process new records as if they were arriving in production.
+# MAGIC It also defines another data factory that we'll use to land raw data in our source directory, allowing us to process new records as if they were arriving in production.
 
 # COMMAND ----------
 
-# MAGIC %run ../Includes/module-3/setup-lesson-3.06-cdc-setup $mode="reset"
+# MAGIC %run ../Includes/module-3/setup-lesson-3.06-cdc-setup
 
 # COMMAND ----------
 
@@ -56,18 +56,6 @@
 # COMMAND ----------
 
 spark.conf.set("spark.databricks.delta.properties.defaults.enableChangeDataFeed", True)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC Confirm source directory is empty.
-
-# COMMAND ----------
-
-try:
-    dbutils.fs.ls(Raw.userdir)
-except Exception as e:
-    print(e)
 
 # COMMAND ----------
 
@@ -84,26 +72,26 @@ except Exception as e:
 
 schema = "mrn BIGINT, dob DATE, sex STRING, gender STRING, first_name STRING, last_name STRING, street_address STRING, zip BIGINT, city STRING, state STRING, updated timestamp"
 
-bronzePath = f"{userhome}/bronze"
-
 spark.sql(f"""
     CREATE TABLE IF NOT EXISTS bronze
     (mrn BIGINT, dob DATE, sex STRING, gender STRING, first_name STRING, last_name STRING, street_address STRING, zip BIGINT, city STRING, state STRING, updated timestamp) 
-    LOCATION '{bronzePath}'
+    LOCATION '{DA.paths.working_dir}/bronze'
 """)
 
-(spark.readStream
-    .format("cloudFiles")
-    .option("cloudFiles.format", "json")
-    .schema(schema)
-    .load(Raw.userdir)
-    .writeStream
-    .format("delta")
-    .outputMode("append")
-    #.trigger(once=True)
-    .trigger(processingTime='5 seconds')
-    .option("checkpointLocation", userhome + "/_bronze_checkpoint")
-    .table("bronze"))
+query = (spark.readStream
+              .format("cloudFiles")
+              .option("cloudFiles.format", "json")
+              .schema(schema)
+              .load(DA.paths.cdc_stream)
+              .writeStream
+              .format("delta")
+              .outputMode("append")
+              #.trigger(once=True)
+              .trigger(processingTime='5 seconds')
+              .option("checkpointLocation", f"{DA.paths.checkpoints}/bronze")
+              .table("bronze"))
+
+DA.block_until_stream_is_ready(query)
 
 # COMMAND ----------
 
@@ -114,8 +102,10 @@ spark.sql(f"""
 
 # COMMAND ----------
 
-Raw.arrival()
-dbutils.fs.ls(Raw.userdir)
+DA.data_factory.load()
+
+files = dbutils.fs.ls(DA.paths.cdc_stream)
+display(files)
 
 # COMMAND ----------
 
@@ -126,12 +116,10 @@ dbutils.fs.ls(Raw.userdir)
 
 # COMMAND ----------
 
-silverPath = userhome + "/silver"
-
 spark.sql(f"""
     CREATE TABLE silver
-    DEEP CLONE delta.`{URI}/pii/silver`
-    LOCATION '{silverPath}'
+    DEEP CLONE delta.`{DA.data_source_uri}/pii/silver`
+    LOCATION '{DA.paths.silver}'
 """)
 
 # COMMAND ----------
@@ -157,7 +145,7 @@ spark.sql(f"""
 
 # COMMAND ----------
 
-def upsertToDelta(microBatchDF, batchId):
+def upsert_to_delta(microBatchDF, batchId):
     microBatchDF.createOrReplaceTempView("updates")
     microBatchDF._jdf.sparkSession().sql("""
         MERGE INTO silver s
@@ -178,14 +166,16 @@ def upsertToDelta(microBatchDF, batchId):
             THEN INSERT *
     """)
     
-(spark.readStream
-    .table("bronze")
-    .writeStream
-    .foreachBatch(upsertToDelta)
-    .outputMode("update")
-#     .trigger(once=True)
-    .trigger(processingTime='5 seconds')
-    .start())
+query = (spark.readStream
+              .table("bronze")
+              .writeStream
+              .foreachBatch(upsert_to_delta)
+              .outputMode("update")
+              # .trigger(once=True)
+              .trigger(processingTime='5 seconds')
+              .start())
+
+DA.block_until_stream_is_ready(query)
 
 # COMMAND ----------
 
@@ -194,7 +184,8 @@ def upsertToDelta(microBatchDF, batchId):
 
 # COMMAND ----------
 
-dbutils.fs.ls(silverPath)
+files = dbutils.fs.ls(DA.paths.silver)
+display(files)
 
 # COMMAND ----------
 
@@ -203,7 +194,8 @@ dbutils.fs.ls(silverPath)
 
 # COMMAND ----------
 
-dbutils.fs.ls(silverPath + "/_change_data")
+files = dbutils.fs.ls(f"{DA.paths.silver}/_change_data")
+display(files)
 
 # COMMAND ----------
 
@@ -218,8 +210,16 @@ dbutils.fs.ls(silverPath + "/_change_data")
 
 # COMMAND ----------
 
-cdcDF = spark.readStream.format("delta").option("readChangeData", True).option("startingVersion", 0).table("silver")
-display(cdcDF.filter("city = 'Los Angeles'"))
+cdc_df = (spark.readStream
+               .format("delta")
+               .option("readChangeData", True)
+               .option("startingVersion", 0)
+               .table("silver"))
+
+cdc_la_df = cdc_df.filter("city = 'Los Angeles'")
+display(cdc_la_df, streamName = "display_la")
+
+DA.block_until_stream_is_ready(name = "display_la")
 
 # COMMAND ----------
 
@@ -228,7 +228,7 @@ display(cdcDF.filter("city = 'Los Angeles'"))
 
 # COMMAND ----------
 
-Raw.arrival()
+DA.data_factory.load()
 
 # COMMAND ----------
 
@@ -258,24 +258,20 @@ Raw.arrival()
 
 # COMMAND ----------
 
-goldPath = userhome + "/gold"
-
-spark.sql(f"""
-    CREATE TABLE gold
-        (mrn BIGINT,
-        new_street_address STRING,
-        new_zip BIGINT,
-        new_city STRING,
-        new_state STRING,
-        old_street_address STRING,
-        old_zip BIGINT,
-        old_city STRING,
-        old_state STRING,
-        updated_timestamp TIMESTAMP,
-        processed_timestamp TIMESTAMP)
-    USING DELTA
-    LOCATION '{goldPath}'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE gold (mrn BIGINT,
+# MAGIC                    new_street_address STRING,
+# MAGIC                    new_zip BIGINT,
+# MAGIC                    new_city STRING,
+# MAGIC                    new_state STRING,
+# MAGIC                    old_street_address STRING,
+# MAGIC                    old_zip BIGINT,
+# MAGIC                    old_city STRING,
+# MAGIC                    old_state STRING,
+# MAGIC                    updated_timestamp TIMESTAMP,
+# MAGIC                    processed_timestamp TIMESTAMP)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.working_dir}/gold'
 
 # COMMAND ----------
 
@@ -285,7 +281,11 @@ spark.sql(f"""
 
 # COMMAND ----------
 
-silverStreamDF = spark.readStream.format("delta").option("readChangeData", True).option("startingVersion", 0).table("silver")
+silver_stream_df = (spark.readStream
+                         .format("delta")
+                         .option("readChangeData", True)
+                         .option("startingVersion", 0)
+                         .table("silver"))
 
 # COMMAND ----------
 
@@ -301,7 +301,9 @@ silverStreamDF = spark.readStream.format("delta").option("readChangeData", True)
 
 # COMMAND ----------
 
-newDF = (silverStreamDF
+from pyspark.sql import functions as F
+
+new_df = (silver_stream_df
          .filter(F.col("_change_type").isin(["update_postimage", "insert"]))
          .selectExpr("mrn",
                      "street_address new_street_address",
@@ -309,19 +311,16 @@ newDF = (silverStreamDF
                      "city new_city",
                      "state new_state",
                      "updated updated_timestamp",
-                     "_commit_timestamp processed_timestamp")
-        )
-
+                     "_commit_timestamp processed_timestamp"))
                                                                                          
-oldDF = (silverStreamDF
+old_df = (silver_stream_df
          .filter(F.col("_change_type").isin(["update_preimage"]))
          .selectExpr("mrn",
                      "street_address old_street_address",
                      "zip old_zip",
                      "city old_city",
                      "state old_state",
-                     "_commit_timestamp processed_timestamp")
-        )
+                     "_commit_timestamp processed_timestamp"))
 
 # COMMAND ----------
 
@@ -336,15 +335,17 @@ oldDF = (silverStreamDF
 
 # COMMAND ----------
 
-(newDF.withWatermark("processed_timestamp", "3 minutes")
-    .join(oldDF, ["mrn", "processed_timestamp"], "left")
-    .filter("new_street_address <> old_street_address OR old_street_address IS NULL")
-    .writeStream
-    .outputMode("append")
-#     .trigger(once=True)
-    .trigger(processingTime="5 seconds")
-    .option("checkpointLocation", userhome + "/_gold_checkpoint")
-    .table("gold"))
+query = (new_df.withWatermark("processed_timestamp", "3 minutes")
+               .join(old_df, ["mrn", "processed_timestamp"], "left")
+               .filter("new_street_address <> old_street_address OR old_street_address IS NULL")
+               .writeStream
+               .outputMode("append")
+               #.trigger(once=True)
+               .trigger(processingTime="5 seconds")
+               .option("checkpointLocation", f"{DA.paths.checkpoints}/gold")
+               .table("gold"))
+
+DA.block_until_stream_is_ready(query)
 
 # COMMAND ----------
 
@@ -365,7 +366,7 @@ oldDF = (silverStreamDF
 
 # COMMAND ----------
 
-Raw.arrival()
+DA.data_factory.load()
 
 # COMMAND ----------
 
@@ -386,6 +387,7 @@ Raw.arrival()
 
 for stream in spark.streams.active:
     stream.stop()
+    stream.awaitTermination()
 
 # COMMAND ----------
 

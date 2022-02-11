@@ -36,7 +36,9 @@
 # MAGIC 
 # MAGIC Databricks <a href="https://docs.databricks.com/security/access-control/table-acls/object-privileges.html#dynamic-view-functions" target="_blank">dynamic views</a> allow user or group identity ACLs to be applied to data at the column (or row) level.
 # MAGIC 
-# MAGIC Database administrators can configure data access privileges to disallow access to a source table and only allow users to query a redacted view. Users with sufficient privileges will be able to see all fields, while restricted users will be shown arbitrary results, as defined at view creation.
+# MAGIC Database administrators can configure data access privileges to disallow access to a source table and only allow users to query a redacted view. 
+# MAGIC 
+# MAGIC Users with sufficient privileges will be able to see all fields, while restricted users will be shown arbitrary results, as defined at view creation.
 
 # COMMAND ----------
 
@@ -45,12 +47,15 @@
 
 # COMMAND ----------
 
-spark.table("users").columns
+# MAGIC %sql 
+# MAGIC DESCRIBE TABLE users
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Obviously first name, last name, date of birth, and street address are problematic. We'll also obfuscate zip code (as zip code combined with date of birth has a very high confidence in identifying data).
+# MAGIC Obviously first name, last name, date of birth, and street address are problematic. 
+# MAGIC 
+# MAGIC We'll also obfuscate zip code (as zip code combined with date of birth has a very high confidence in identifying data).
 
 # COMMAND ----------
 
@@ -153,11 +158,13 @@ spark.table("users").columns
 # MAGIC 
 # MAGIC Another approach to reducing chance of exposing PII is only providing access to data at a less specific level.
 # MAGIC 
-# MAGIC In this section, we'll assign users to age bins while maintaining their gender, city, and state information. This will provide sufficient demographic information to build comparative dashboards without revealing specific user identity.
+# MAGIC In this section, we'll assign users to age bins while maintaining their gender, city, and state information. 
+# MAGIC 
+# MAGIC This will provide sufficient demographic information to build comparative dashboards without revealing specific user identity.
 
 # COMMAND ----------
 
-usersDF = spark.table("users")
+users_df = spark.table("users")
 
 # COMMAND ----------
 
@@ -168,17 +175,18 @@ usersDF = spark.table("users")
 
 def age_bins(dob_col):
     age_col = F.floor(F.months_between(F.current_date(), dob_col)/12).alias("age")
+    
     return (F.when((age_col < 18), "under 18")
-            .when((age_col >= 18) & (age_col < 25), "18-25")
-            .when((age_col >= 25) & (age_col < 35), "25-35")
-            .when((age_col >= 35) & (age_col < 45), "35-45")
-            .when((age_col >= 45) & (age_col < 55), "45-55")
-            .when((age_col >= 55) & (age_col < 65), "55-65")
-            .when((age_col >= 65) & (age_col < 75), "65-75")
-            .when((age_col >= 75) & (age_col < 85), "75-85")
-            .when((age_col >= 85) & (age_col < 95), "85-95")
-            .when((age_col >= 95), "95+")
-            .otherwise("invalid age").alias("age"))
+             .when((age_col >= 18) & (age_col < 25), "18-25")
+             .when((age_col >= 25) & (age_col < 35), "25-35")
+             .when((age_col >= 35) & (age_col < 45), "35-45")
+             .when((age_col >= 45) & (age_col < 55), "45-55")
+             .when((age_col >= 55) & (age_col < 65), "55-65")
+             .when((age_col >= 65) & (age_col < 75), "65-75")
+             .when((age_col >= 75) & (age_col < 85), "75-85")
+             .when((age_col >= 85) & (age_col < 95), "85-95")
+             .when((age_col >= 95), "95+")
+             .otherwise("invalid age").alias("age"))
 
 # COMMAND ----------
 
@@ -189,12 +197,14 @@ def age_bins(dob_col):
 
 # COMMAND ----------
 
-lookupDF = spark.table("user_lookup").select("alt_id", "user_id")
-binsDF = usersDF.join(lookupDF, ["alt_id"], "left").select("user_id", age_bins(F.col("dob")),"gender", "city", "state")
+from pyspark.sql import functions as F
+
+lookup_df = spark.table("user_lookup").select("alt_id", "user_id")
+bins_df = users_df.join(lookup_df, ["alt_id"], "left").select("user_id", age_bins(F.col("dob")),"gender", "city", "state")
 
 # COMMAND ----------
 
-display(binsDF)
+display(bins_df)
 
 # COMMAND ----------
 
@@ -203,14 +213,11 @@ display(binsDF)
 
 # COMMAND ----------
 
-spark.sql("DROP TABLE IF EXISTS user_bins")
-dbutils.fs.rm(Paths.userBins, True)
-
-(binsDF.write
-  .format("delta")
-  .option("path", Paths.userBins)
-  .mode("overwrite")
-  .saveAsTable("user_bins"))
+(bins_df.write
+        .format("delta")
+        .option("path", f"{DA.paths.working_dir}/user_bins")
+        .mode("overwrite")
+        .saveAsTable("user_bins"))
 
 # COMMAND ----------
 

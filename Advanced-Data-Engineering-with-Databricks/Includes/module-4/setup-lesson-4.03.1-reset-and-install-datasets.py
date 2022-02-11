@@ -39,22 +39,41 @@ def create_producer_30m_table_source():
     """) # No location for source db
     print(f"({int(time.time())-start} seconds)")
 
-# def create_producer_30m_table():
-#     import time
-    
-#     start = int(time.time())
-#     print(f"Creating date_lookup", end="...")
-    
-#     spark.sql(f"""
-#       CREATE TABLE IF NOT EXISTS date_lookup
-#       DEEP CLONE {DA.source_db_name}.date_lookup
-#       LOCATION '{DA.paths.user_db}/date_lookup'
-#     """)
-    
-#     total = spark.read.table("date_lookup").count()
-#     print(f"({int(time.time())-start} seconds / {total:,} records)")
-    
 None # Suppressing Output
+
+# COMMAND ----------
+
+class DataFactory:
+    def __init__(self):
+        pass
+    
+    def load(self, from_batch=0, batch_delay=5):
+        import time
+        from pyspark.sql import functions as F
+
+        batch = from_batch
+        producer_df = spark.read.table(f"{DA.source_db_name}.producer_30m")
+        arrival_max, arrival_min = producer_df.select(F.max("arrival"), F.min("arrival")).collect()[0]
+
+        # print(f"arrival_min:  {arrival_min:,}")
+        # print(f"arrival_max:  {arrival_max:,}")
+        print(f"Total Batchs: {arrival_max-arrival_min:,}")
+        
+        while arrival_min+batch < arrival_max+1:
+            start = time.time()*1000
+
+            (producer_df.filter(F.col("arrival") == arrival_min+batch).drop("arrival")
+                        .write
+                        .mode("append")
+                        .format("json")
+                        .save(DA.paths.producer_30m))
+
+            print(f"Batch #{batch+1} duration: {int(time.time()*1000-start):,} ms")
+            batch += 1    
+            time.sleep(batch_delay)
+
+DA.paths.producer_30m = f"{DA.paths.working_dir}/producer_30m"            
+DA.data_factory = DataFactory()
 
 # COMMAND ----------
 
@@ -87,7 +106,7 @@ print()
 # DA.process_workout_bpm()
 
 # DA.process_users()
-# build_user_bins()
+# DA.process_user_bins()
 
 # COMMAND ----------
 
