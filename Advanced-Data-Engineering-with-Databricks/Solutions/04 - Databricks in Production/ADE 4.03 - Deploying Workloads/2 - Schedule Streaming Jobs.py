@@ -12,7 +12,7 @@
 # MAGIC 
 # MAGIC We'll use this notebook as a framework to launch multiple streams on shared resources.
 # MAGIC 
-# MAGIC This notebook contains partially refactored code with all the updates and additions that will allow us to schedule our pipelines and run them as new data arrives, including logic for dealing with partition deletes from our `bronze` table.
+# MAGIC This notebook contains partially refactored code with all the updates and additions that will allow us to schedule our pipelines and run them as new data arrives, including logic for dealing with partition deletes from our **`bronze`** table.
 # MAGIC 
 # MAGIC Also included is logic to assign each stream to a scheduler pool. Review the code below and then follow the instructions in the following cell to schedule a streaming job.
 # MAGIC 
@@ -175,17 +175,19 @@ def process_bronze(source, table_name, checkpoint, once=False, processing_time="
 # MAGIC 
 # MAGIC To enable all streaming queries to execute jobs concurrently and to share the cluster efficiently, you can set the queries to execute in separate scheduler pools. This **local property configuration** will be in the same notebook cell where we start the streaming query. For example:
 # MAGIC 
-# MAGIC **Run streaming query1 in scheduler pool1**
-# MAGIC ```
-# MAGIC spark.sparkContext.setLocalProperty("spark.scheduler.pool", "pool1")
-# MAGIC df.writeStream.queryName("query1").format("parquet").start(path1)
-# MAGIC ```
-# MAGIC **Run streaming query2 in scheduler pool2**
+# MAGIC ** Run streaming query1 in scheduler pool1 **
 # MAGIC 
-# MAGIC ```
-# MAGIC spark.sparkContext.setLocalProperty("spark.scheduler.pool", "pool2")
+# MAGIC <strong><code>
+# MAGIC spark.sparkContext.setLocalProperty("spark.scheduler.pool", "pool1")<br/>
+# MAGIC df.writeStream.queryName("query1").format("parquet").start(path1)
+# MAGIC </code></strong>
+# MAGIC 
+# MAGIC ** Run streaming query2 in scheduler pool2 **
+# MAGIC 
+# MAGIC <strong><code>
+# MAGIC spark.sparkContext.setLocalProperty("spark.scheduler.pool", "pool2")<br/>
 # MAGIC df.writeStream.queryName("query2").format("delta").start(path2)
-# MAGIC ```
+# MAGIC </code></strong>
 
 # COMMAND ----------
 

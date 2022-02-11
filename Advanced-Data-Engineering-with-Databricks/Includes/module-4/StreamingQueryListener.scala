@@ -1,8 +1,10 @@
 // Databricks notebook source
 // MAGIC %md
-// MAGIC This script provides a custom Streaming Query Listener that log progress as JSON files. [Docs](https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#reporting-metrics-programmatically-using-asynchronous-apis)
+// MAGIC This script provides a custom Streaming Query Listener that log progress as JSON files. 
 // MAGIC 
-// MAGIC To reset the target logging directory, change the cell to `%run ../Includes/StreamingQueryListener $reset="true"`
+// MAGIC For more information see <a href="https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html#reporting-metrics-programmatically-using-asynchronous-apis" target="_blank">the Structured Streaming Programming Guide, Reporting Metrics Programmatically-using Asynchronous APIs</a>
+// MAGIC 
+// MAGIC To reset the target logging directory, change the calling cell to **`%run ../Includes/StreamingQueryListener $reset="true"`**
 
 // COMMAND ----------
 
