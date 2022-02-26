@@ -222,6 +222,16 @@ display(files)
 # MAGIC 
 # MAGIC It's important to understand how cloned tables behave with file retention actions.
 # MAGIC 
+# MAGIC Recall the files in our **`sensors_prod`** table:
+
+# COMMAND ----------
+
+files = DA.check_files("sensors_prod")
+display(files)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC Run the cell below to **`VACUUM`** your source production table (removing all files not referenced in the most recent version).
 
 # COMMAND ----------
@@ -229,6 +239,10 @@ display(files)
 spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", False)
 spark.sql("VACUUM sensors_prod RETAIN 0 HOURS")
 spark.conf.set("spark.databricks.delta.retentionDurationCheck.enabled", True)
+
+# COMMAND ----------
+
+# MAGIC %md We see that there are now fewer total data files associated with this table.
 
 # COMMAND ----------
 
