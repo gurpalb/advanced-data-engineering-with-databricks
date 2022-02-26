@@ -72,7 +72,10 @@ DA.install_datasets = _install_datasets
 
 def validate_path(expected, path):
     files = dbutils.fs.ls(path)
-    assert len(files) == expected, f"Expected {expected} files, found {len(files)} in {path}" 
+    message = f"Expected {expected} files, found {len(files)} in {path}"
+    for file in files:
+        message += f"\n{file.path}"
+    assert len(files) == expected, message 
 
 def validate_datasets():  
     import time
