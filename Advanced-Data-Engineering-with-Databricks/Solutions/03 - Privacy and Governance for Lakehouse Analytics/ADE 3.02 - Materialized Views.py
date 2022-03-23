@@ -101,7 +101,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Using trigger once logic with Delta Lake, we can ensure that we'll only calculate new results if records have changed in the upstream source tables.
+# MAGIC Using trigger-available-now logic with Delta Lake, we can ensure that we'll only calculate new results if records have changed in the upstream source tables.
 
 # COMMAND ----------
 
@@ -125,7 +125,7 @@ user_bins_df = spark.sql("""
      .option("checkpointLocation", f"{DA.paths.checkpoints}/workout_bpm_summary")
      .option("path", f"{DA.paths.user_db}/workout_bpm_summary.delta")
      .outputMode("complete")
-     .trigger(once=True)
+     .trigger(availableNow=True)
      .table("workout_bpm_summary")
      .awaitTermination())
 

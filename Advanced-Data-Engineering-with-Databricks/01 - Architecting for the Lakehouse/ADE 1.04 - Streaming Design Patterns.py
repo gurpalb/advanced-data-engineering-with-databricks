@@ -69,7 +69,7 @@ def update_silver():
                   .table("bronze")
                   .withColumn("processed_time", F.current_timestamp())
                   .writeStream.option("checkpointLocation", f"{DA.paths.checkpoints}/silver")
-                  .trigger(once=True)
+                  .trigger(availableNow=True)
                   .table("silver"))
     
     query.awaitTermination()
@@ -80,10 +80,13 @@ def update_silver():
 # MAGIC %md
 # MAGIC While this code uses Structured Streaming, it's appropriate to think of this as a triggered batch processing incremental changes.
 # MAGIC 
-# MAGIC <img src="https://files.training.databricks.com/images/icon_note_32.png">
-# MAGIC To facilitate the demonstration of structured streams, we are using **`trigger(once=True)`** to slow<br/>
+# MAGIC <img src="https://files.training.databricks.com/images/icon_note_32.png"></img>
+# MAGIC To facilitate the demonstration of structured streams, we are using **`trigger(availableNow=True)`** to slow<br/>
 # MAGIC down the processing of the data combined with **`query.awaitTermination()`** to prevent the lesson from<br/>
-# MAGIC moving forward until the one batch is processed.
+# MAGIC moving forward until the one batch is processed.  **trigger-available-now** is very similar to **trigger-once** but can run
+# MAGIC multiple batches until all available data is consumed instead of once big batch and is introduced in
+# MAGIC <a href="https://spark.apache.org/releases/spark-release-3-3-0.html" target="_blank">Spark 3.3.0</a> and
+# MAGIC <a href="https://docs.databricks.com/release-notes/runtime/10.4.html" target="_blank">Databricks Runtime 10.4 LTS</a>.
 
 # COMMAND ----------
 
@@ -98,6 +101,7 @@ update_silver()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver
+# MAGIC ORDER BY processed_time DESC, id DESC
 
 # COMMAND ----------
 
@@ -130,6 +134,7 @@ update_silver()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver
+# MAGIC ORDER BY processed_time DESC, id DESC
 
 # COMMAND ----------
 
@@ -138,7 +143,7 @@ update_silver()
 # MAGIC 
 # MAGIC Those familiar with Structured Streaming may be aware that the **`foreachBatch`** method provides the option to execute custom data writing logic on each microbatch of streaming data.
 # MAGIC 
-# MAGIC New DBR functionality provides guarantees that these writes will be idempotent, even when writing to multiple tables. This is especially useful when data for multiple tables might be contained within a single record.
+# MAGIC The Databricks Runtime provides guarantees that these <a href="https://docs.databricks.com/delta/delta-streaming.html#idempot-write" target="_blank">streaming DeltaLake writes will be idempotent</a>, even when writing to multiple tables. This is especially useful when data for multiple tables might be contained within a single record.  This was added in <a href="https://docs.databricks.com/release-notes/runtime/8.4.html" target="_blank">Databricks Runtime 8.4</a>.
 # MAGIC 
 # MAGIC The code below first defines the custom writer logic to append records to two new tables, and then demonstrates using this function within **`foreachBatch`**.
 
@@ -156,9 +161,8 @@ def split_stream():
     query = (spark.readStream.table("bronze")
                  .writeStream
                  .foreachBatch(write_twice)
-                 .outputMode("update")
                  .option("checkpointLocation", f"{DA.paths.checkpoints}/split_stream")
-                 .trigger(once=True)
+                 .trigger(availableNow=True)
                  .start())
     
     query.awaitTermination()
@@ -182,6 +186,7 @@ split_stream()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_name
+# MAGIC ORDER BY processed_time DESC, id DESC
 
 # COMMAND ----------
 
@@ -192,6 +197,7 @@ split_stream()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_value
+# MAGIC ORDER BY processed_time DESC, id DESC
 
 # COMMAND ----------
 
@@ -224,11 +230,13 @@ split_stream()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_name
+# MAGIC ORDER BY processed_time DESC, id DESC
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_value
+# MAGIC ORDER BY processed_time DESC, id DESC
 
 # COMMAND ----------
 
@@ -251,7 +259,7 @@ def update_key_value():
                   .writeStream
                   .option("checkpointLocation", f"{DA.paths.checkpoints}/key_value")
                   .outputMode("complete")
-                  .trigger(once=True)
+                  .trigger(availableNow=True)
                   .table("key_value"))
     
     query.awaitTermination()
@@ -281,6 +289,7 @@ update_key_value()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM key_value
+# MAGIC ORDER BY id
 
 # COMMAND ----------
 
@@ -311,6 +320,7 @@ update_key_value()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM key_value
+# MAGIC ORDER BY id
 
 # COMMAND ----------
 
@@ -376,8 +386,7 @@ def streaming_merge():
                   .writeStream
                   .foreachBatch(upsert_cdc)
                   .option("checkpointLocation", f"{DA.paths.checkpoints}/silver_status")
-                  .outputMode("update")
-                  .trigger(once=True)
+                  .trigger(availableNow=True)
                   .start())
     
     query.awaitTermination()
@@ -396,6 +405,7 @@ streaming_merge()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_status
+# MAGIC ORDER BY updated_timestamp DESC, user_id DESC
 
 # COMMAND ----------
 
@@ -425,6 +435,7 @@ streaming_merge()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_status
+# MAGIC ORDER BY updated_timestamp DESC, user_id DESC
 
 # COMMAND ----------
 
@@ -466,7 +477,7 @@ query = stream_stream_join()
 # MAGIC %md 
 # MAGIC This also means that it is possible to read the new tables before there is any data in them.
 # MAGIC 
-# MAGIC Because the stream never stops we can't block until the trigger-once stream has terminated with **`awaitTermination()`**.
+# MAGIC Because the stream never stops we can't block until the trigger-available-now stream has terminated with **`awaitTermination()`**.
 # MAGIC 
 # MAGIC Instead we can block until "some" data is processed by leveraging **`query.recentProgress`**.
 
@@ -494,11 +505,9 @@ display(spark.readStream.table("joined_streams"))
 
 # MAGIC %md 
 # MAGIC 
-# MAGIC <img src="https://files.training.databricks.com/images/icon_note_32.png"> Note that a separate stream is started.
+# MAGIC <img src="https://files.training.databricks.com/images/icon_note_32.png"> Anytime a streaming read is displayed to a notebook, a streaming job will begin.
 # MAGIC 
-# MAGIC One to process the data as part of our original pipline
-# MAGIC 
-# MAGIC A second to update the **`display()`** function with the latest results
+# MAGIC Here a second stream is started.  One is processing the data as part of our original pipline, and now a second streaming job is running to update the **`display()`** function with the latest results.
 
 # COMMAND ----------
 
@@ -533,7 +542,8 @@ split_stream()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Interactive streams should always be stopped before leaving a notebook session, as they can keep clusters from timing out and incur unnecessary cloud costs.
+# MAGIC Interactive streams should always be stopped before leaving a notebook session, as they can keep clusters from auto-terminating and incur unnecessary cloud costs.  
+# MAGIC You can terminate a streaming job by clicking "Cancel" on a running cell, "Stop Execution" at the top of the notebook, or by running the code below.
 
 # COMMAND ----------
 
@@ -577,6 +587,7 @@ block_until_stream_is_ready(query)
 
 # MAGIC %sql
 # MAGIC SELECT * FROM joined_status
+# MAGIC ORDER BY id DESC
 
 # COMMAND ----------
 
@@ -587,6 +598,7 @@ block_until_stream_is_ready(query)
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_status
+# MAGIC ORDER BY updated_timestamp DESC, user_id DESC
 
 # COMMAND ----------
 
@@ -610,6 +622,7 @@ streaming_merge()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM joined_status
+# MAGIC ORDER BY id DESC
 
 # COMMAND ----------
 
@@ -632,6 +645,7 @@ streaming_merge()
 
 # MAGIC %sql
 # MAGIC SELECT * FROM joined_status
+# MAGIC ORDER BY id DESC
 
 # COMMAND ----------
 

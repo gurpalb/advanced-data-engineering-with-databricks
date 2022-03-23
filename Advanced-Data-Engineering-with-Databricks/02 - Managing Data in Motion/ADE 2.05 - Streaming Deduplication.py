@@ -160,12 +160,12 @@ class Upsert:
 
 # COMMAND ----------
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS heart_rate_silver 
-    (device_id LONG, time TIMESTAMP, heartrate DOUBLE)
-    USING DELTA
-    LOCATION '{DA.paths.user_db}/heart_rate_silver'
-""")
+# MAGIC %sql
+# MAGIC 
+# MAGIC CREATE TABLE IF NOT EXISTS heart_rate_silver 
+# MAGIC (device_id LONG, time TIMESTAMP, heartrate DOUBLE)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/heart_rate_silver'
 
 # COMMAND ----------
 
@@ -187,7 +187,7 @@ query = (deduped_df.writeStream
                    .foreachBatch(streaming_merge.upsert_to_delta)
                    .outputMode("update")
                    .option("checkpointLocation", f"{DA.paths.checkpoints}/recordings")
-                   .trigger(once=True)
+                   .trigger(availableNow=True)
                    .start())
 
 query.awaitTermination()

@@ -37,12 +37,11 @@
 
 # COMMAND ----------
 
-spark.sql(f"""
-CREATE TABLE IF NOT EXISTS heart_rate_silver
-(device_id LONG, time TIMESTAMP, heartrate DOUBLE, bpm_check STRING)
-USING DELTA
-LOCATION '{DA.paths.user_db}/heart_rate_silver'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS heart_rate_silver
+# MAGIC   (device_id LONG, time TIMESTAMP, heartrate DOUBLE, bpm_check STRING)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/heart_rate_silver'
 
 # COMMAND ----------
 
@@ -70,7 +69,7 @@ LOCATION '{DA.paths.user_db}/heart_rate_silver'
 
 # MAGIC %md
 # MAGIC ## Define a Streaming Read and Transformation
-# MAGIC Use the cell below to create a streaming read that includes:
+# MAGIC Using the cell below we will create a streaming read that includes:
 # MAGIC 1. A filter for the topic **`bpm`**
 # MAGIC 2. Logic to flatten the JSON payload and cast data to the appropriate schema
 # MAGIC 3. A **`bpm_check`** column to flag negative records
@@ -78,10 +77,19 @@ LOCATION '{DA.paths.user_db}/heart_rate_silver'
 
 # COMMAND ----------
 
-# TODO
-streaming_df = (
-# <FILL_IN>
-)
+from pyspark.sql import functions as F
+
+json_schema = "device_id LONG, time TIMESTAMP, heartrate DOUBLE"
+
+streaming_df = (spark.readStream
+                     .table("bronze")
+                     .filter("topic = 'bpm'")
+                     .select(F.from_json(F.col("value").cast("string"), json_schema).alias("v"))
+                     .select("v.*", F.when(F.col("v.heartrate") <= 0, "Negative BPM")
+                                     .otherwise("OK")
+                                     .alias("bpm_check"))
+                     .withWatermark("time", "30 seconds")
+                     .dropDuplicates(["device_id", "time"]))
 
 # COMMAND ----------
 
@@ -118,7 +126,7 @@ streaming_merge=Upsert(sql_query)
 
 # MAGIC %md
 # MAGIC ## Apply Upsert and Write
-# MAGIC Now execute a write with trigger once logic to process all existing data from the bronze table.
+# MAGIC Now execute a write with trigger-available-now logic to process all existing data from the bronze table.
 
 # COMMAND ----------
 
@@ -127,7 +135,7 @@ def process_silver_heartrate():
                          .foreachBatch(streaming_merge.upsert_to_delta)
                          .outputMode("update")
                          .option("checkpointLocation", f"{DA.paths.checkpoints}/recordings")
-                         .trigger(once=True)
+                         .trigger(availableNow=True)
                          .start())
     query.awaitTermination()
     

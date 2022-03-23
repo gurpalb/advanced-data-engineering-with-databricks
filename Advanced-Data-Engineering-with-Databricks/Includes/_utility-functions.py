@@ -382,7 +382,7 @@ def _process_bronze():
                       .option("checkpointLocation", f"{DA.paths.checkpoints}/bronze")
                       .partitionBy("topic", "week_part")
                       .option("path", f"{DA.paths.user_db}/bronze")
-                      .trigger(once=True)
+                      .trigger(availableNow=True)
                       .table("bronze"))
         query.awaitTermination()
     
@@ -436,7 +436,7 @@ def _process_heart_rate_silver_v0():
               .foreachBatch(streamingMerge.upsertToDelta)
               .outputMode("update")
               .option("checkpointLocation", f"{DA.paths.checkpoints}/heart_rate")
-              .trigger(once=True)
+              .trigger(availableNow=True)
               .start()
               .awaitTermination())
     
@@ -492,7 +492,7 @@ def _process_heart_rate_silver():
               .foreachBatch(streamingMerge.upsertToDelta)
               .outputMode("update")
               .option("checkpointLocation", f"{DA.paths.checkpoints}/heart_rate")
-              .trigger(once=True)
+              .trigger(availableNow=True)
               .start()
               .awaitTermination())    
     
@@ -510,7 +510,7 @@ None # Suppressing Output
 
 # COMMAND ----------
 
-def _process_workouts_silver(once=False, processing_time="15 seconds"):
+def _process_workouts_silver():
     import time
     from pyspark.sql import functions as F
     from pyspark.sql.utils import AnalysisException
@@ -553,7 +553,7 @@ def _process_workouts_silver(once=False, processing_time="15 seconds"):
               .outputMode("update")
               .option("checkpointLocation", f"{DA.paths.checkpoints}/workouts")
               .queryName("workouts_silver")
-              .trigger(once=True)
+              .trigger(availableNow=True)
               .start()
               .awaitTermination())
         
@@ -631,7 +631,7 @@ def _process_workout_bpm():
             .outputMode("append")
             .option("checkpointLocation", f"{DA.paths.checkpoints}/workout_bpm")
             .option("path", f"{DA.paths.user_db}/workout_bpm")
-            .trigger(once=True)
+            .trigger(availableNow=True)
             .table("workout_bpm")
             .awaitTermination())
     
@@ -727,7 +727,7 @@ def _process_users():
             .foreachBatch(batch_rank_upsert)
             .outputMode("update")
             .option("checkpointLocation", f"{DA.paths.checkpoints}/users")
-            .trigger(once=True)
+            .trigger(availableNow=True)
             .start()
             .awaitTermination())    
 

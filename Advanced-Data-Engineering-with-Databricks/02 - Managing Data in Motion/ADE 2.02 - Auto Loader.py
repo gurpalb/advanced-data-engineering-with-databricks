@@ -108,7 +108,7 @@ def load_gym_logs():
                   .writeStream
                   .format("delta")
                   .option("checkpointLocation", f"{DA.paths.checkpoints}/gym_mac_logs")
-                  .trigger(once=True)
+                  .trigger(availableNow=True)
                   .table("gym_mac_logs"))
     
     query.awaitTermination()
@@ -116,7 +116,8 @@ def load_gym_logs():
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that we're using trigger once logic for batch execution. While we may not have the latency requirements of a Structured Streaming workload, Auto Loader prevents any CDC on our file source, allowing us to simply trigger a cron job daily to process all new data that's arrived.
+# MAGIC Note that we're using **trigger-available-now** logic for batch execution.  trigger-available-now is very similar to **trigger-once** but can run
+# MAGIC multiple batches until all available data is consumed instead of once big batch and is introduced in <a href="https://spark.apache.org/releases/spark-release-3-3-0.html" target="_blank">Spark 3.3.0</a> and <a href="https://docs.databricks.com/release-notes/runtime/10.4.html" target="_blank">Databricks Runtime 10.4 LTS</a>. While we may not have the latency requirements of a Structured Streaming workload, Auto Loader prevents any CDC on our file source, allowing us to simply trigger a cron job daily to process all new data that's arrived.
 
 # COMMAND ----------
 

@@ -60,16 +60,17 @@
 
 # COMMAND ----------
 
-spark.sql("""
-  SELECT d.user_id, d.workout_id, d.session_id, time, heartrate
-  FROM TEMP_heart_rate_silver c
-  INNER JOIN (
-    SELECT a.user_id, b.device_id, workout_id, session_id, start_time, end_time
-    FROM completed_workouts a
-    INNER JOIN user_lookup b
-    ON a.user_id = b.user_id) d
-  ON c.device_id = d.device_id AND time BETWEEN start_time AND end_time
-  WHERE c.bpm_check = 'OK'""").createOrReplaceTempView("TEMP_workout_bpm")
+# MAGIC %sql 
+# MAGIC CREATE OR REPLACE TEMP VIEW TEMP_workout_bpm AS
+# MAGIC   SELECT d.user_id, d.workout_id, d.session_id, time, heartrate
+# MAGIC   FROM TEMP_heart_rate_silver c
+# MAGIC   INNER JOIN (
+# MAGIC     SELECT a.user_id, b.device_id, workout_id, session_id, start_time, end_time
+# MAGIC     FROM completed_workouts a
+# MAGIC     INNER JOIN user_lookup b
+# MAGIC     ON a.user_id = b.user_id) d
+# MAGIC   ON c.device_id = d.device_id AND time BETWEEN start_time AND end_time
+# MAGIC   WHERE c.bpm_check = 'OK'
 
 # COMMAND ----------
 
@@ -93,7 +94,7 @@ def process_workout_bpm():
                   .format("delta")
                   .outputMode("append")
                   .option("checkpointLocation", f"{DA.paths.checkpoints}/workout_bpm")
-                  .trigger(once=True)
+                  .trigger(availableNow=True)
                   .table("workout_bpm"))
     
     query.awaitTermination()

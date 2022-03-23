@@ -66,17 +66,20 @@ class DBAcademyHelper():
             except: pass # Bury any exceptions
             try: stream.awaitTermination()
             except: pass # Bury any exceptions
-
+        
         if spark.sql(f"SHOW DATABASES").filter(f"databaseName == '{self.db_name}'").count() == 1:
             print(f"Dropping the database \"{self.db_name}\"")
             spark.sql(f"DROP DATABASE {self.db_name} CASCADE")
-            
+        
         if self.paths.exists(self.paths.working_dir):
             print(f"Removing the working directory \"{self.paths.working_dir}\"")
             dbutils.fs.rm(self.paths.working_dir, True)
-            
+        
+        # FIXME: Commented out because it might break during parallel testing.
+        # self.databricks_api('POST', '2.0/secrets/scopes/delete', scope="DA-ADE3.03")
+        
         # Make sure that they were not modified
-        if self.initialized: validate_datasets()                
+        if self.initialized: validate_datasets()
 
     def conclude_setup(self, validate=True):
         import time
@@ -97,6 +100,44 @@ class DBAcademyHelper():
         print()
         if validate: validate_datasets()
         print(f"\nSetup completed in {int(time.time())-self.start} seconds")
+
+    @staticmethod
+    def databricks_api(http_method, path, *, on_error="raise", **data):
+        """
+         Args:
+            http_method: 'GET', 'PUT', 'POST', or 'DELETE'
+            path: The path to append to the URL for the API endpoint, excluding the leading '/'.
+              For example: path="2.0/secrets/put"
+          on_error: 'raise', 'ignore', or 'return'.
+            'raise'  means propogate the HTTPError
+            'ignore' means return None
+            'return' means return the error message as json if possible, otherwise as text.  (Default)
+
+        Returns:
+            The return value of the API call as parsed JSON.  If the result is invalid JSON then the
+            result will be returned as plain text.
+
+        Raises:
+            requests.HTTPError: If the API returns an error and on_error='raise'.
+        """
+        import requests, json
+        url = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiUrl().getOrElse(None)+"/api/"
+        token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
+        web = requests.Session()
+        web.headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'text/json'}
+        if http_method == 'GET':
+            params = {k: str(v).lower() if isinstance(value, bool) else v for k,v in data.items()}
+            resp = web.request(http_method, url + path, params = params)
+        else:
+            resp = web.request(http_method, url + path, data = json.dumps(data))
+        if on_error=="raise":
+            resp.raise_for_status()
+        if on_error=="ignore" and not (200 <= resp.status_code < 300):
+            return None
+        try:
+            return resp.json()
+        except json.JSONDecodeError as e:
+            return resp.body
         
 dbutils.widgets.text("lesson", "None")
 lesson = dbutils.widgets.get("lesson")

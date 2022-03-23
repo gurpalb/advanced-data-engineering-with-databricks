@@ -67,5 +67,11 @@ print()
 
 DA.user_reg_stream.load()
 
+# Stores salt="beans" in the secrets store, if permitted.  Exceptions are suppressed.
+DA.databricks_api('POST', '2.0/secrets/scopes/create', on_error='return', scope="DA-ADE3.03", initial_manage_principal="users")
+DA.databricks_api('POST', '2.0/secrets/put',           on_error='return', scope="DA-ADE3.03", key="salt", string_value="BEANS")
+
 DA.conclude_setup()
+
+None
 

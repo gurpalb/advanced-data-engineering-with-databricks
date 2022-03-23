@@ -89,7 +89,7 @@ gymDF.explain("formatted")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Register View with Final Logic
+# MAGIC ## Expand on the Query
 # MAGIC 
 # MAGIC Now we'll join this data back to the MAC logs sent by the gym to create our view.
 # MAGIC 
@@ -100,7 +100,6 @@ gymDF.explain("formatted")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE VIEW IF NOT EXISTS gym_user_stats AS (
 # MAGIC SELECT gym, mac_address, date, workouts, (last_timestamp - first_timestamp)/60 minutes_in_gym, (to_unix_timestamp(end_workout) - to_unix_timestamp(start_workout))/60 minutes_exercising
 # MAGIC FROM gym_mac_logs c
 # MAGIC INNER JOIN (
@@ -110,7 +109,42 @@ gymDF.explain("formatted")
 # MAGIC       ON a.user_id = b.user_id
 # MAGIC       GROUP BY mac_address, to_date(start_time)
 # MAGIC   ) d
-# MAGIC   ON c.mac = d.mac_address AND to_date(CAST(c.first_timestamp AS timestamp)) = d.date)
+# MAGIC   ON c.mac = d.mac_address AND to_date(CAST(c.first_timestamp AS timestamp)) = d.date
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Register View with Final Logic
+# MAGIC 
+# MAGIC Create a (non-temporary) view called **`gym_user_stats`** using the query above.
+# MAGIC 
+# MAGIC **`CREATE VIEW IF NOT EXISTS gym_user_stats AS (...)`**
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- ANSWER
+# MAGIC CREATE VIEW IF NOT EXISTS gym_user_stats AS (
+# MAGIC   SELECT gym, mac_address, date, workouts, (last_timestamp - first_timestamp)/60 minutes_in_gym, (to_unix_timestamp(end_workout) - to_unix_timestamp(start_workout))/60 minutes_exercising
+# MAGIC   FROM gym_mac_logs c
+# MAGIC   INNER JOIN (
+# MAGIC     SELECT b.mac_address, to_date(start_time) date, collect_set(workout_id) workouts, min(start_time) start_workout, max(end_time) end_workout
+# MAGIC         FROM completed_workouts a
+# MAGIC         INNER JOIN user_lookup b
+# MAGIC         ON a.user_id = b.user_id
+# MAGIC         GROUP BY mac_address, to_date(start_time)
+# MAGIC     ) d
+# MAGIC     ON c.mac = d.mac_address AND to_date(CAST(c.first_timestamp AS timestamp)) = d.date
+# MAGIC )
+
+# COMMAND ----------
+
+# Check your work
+assert spark.sql("SHOW TABLES").filter("tableName='gym_user_stats'").count() >= 1, "View 'gym_user_stats' does not exist."
+assert spark.sql("SHOW TABLES").filter("tableName='gym_user_stats'").first()["isTemporary"]==False, "View 'gym_user_stats' should be not temporary."
+assert spark.sql("DESCRIBE EXTENDED gym_user_stats").filter("col_name='Type'").first()['data_type']=='VIEW', "Found a table 'gym_user_stats' when a view was expected."
+assert spark.table("gym_user_stats").count() == 304, "Incorrect query used for view 'gym_user_stats'."
+print("All tests passed.")
 
 # COMMAND ----------
 

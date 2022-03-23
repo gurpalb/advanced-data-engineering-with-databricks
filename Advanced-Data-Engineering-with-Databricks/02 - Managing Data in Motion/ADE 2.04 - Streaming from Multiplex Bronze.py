@@ -153,6 +153,8 @@ display(batch_df)
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC Note that anytime a streaming read is displayed to a notebook, a streaming job will begin and if allowed to run forever this will prevent the cluster from auto-terminating.  You can stop the stream clicking the "Cancel" link in the cell above, clicking "Stop Execution" at the top of the notebook, or running the code below.
+# MAGIC 
 # MAGIC Stop the streaming display above before continuing.
 
 # COMMAND ----------
@@ -164,33 +166,31 @@ for stream in spark.streams.active:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC The cell below has this logic refactored to Python.
+# MAGIC To persist results to disk, a streaming write will need to be performed using Python.  We can switch from SQL to Python by using a temporary view as an intermediary to capture the query we want to apply.
 
 # COMMAND ----------
 
-from pyspark.sql import functions as F
-
-json_schema = "device_id LONG, time TIMESTAMP, heartrate DOUBLE"
-
-bpm_df = (spark.readStream
-               .table("bronze")
-               .filter("topic = 'bpm'")
-               .select(F.from_json(F.col("value").cast("string"), json_schema).alias("v"))
-               .select("v.*"))
+# MAGIC %sql
+# MAGIC CREATE OR REPLACE TEMPORARY VIEW TEMP_SILVER AS
+# MAGIC   SELECT v.*
+# MAGIC   FROM (
+# MAGIC     SELECT from_json(cast(value AS STRING), "device_id LONG, time TIMESTAMP, heartrate DOUBLE") v
+# MAGIC     FROM TEMP_bronze
+# MAGIC     WHERE topic = "bpm")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC Note that anytime a streaming read is displayed to a notebook, a streaming job will begin. To persist results to disk, a streaming write will need to be performed.
+# MAGIC Read from the streaming **`TEMP_SILVER`** temporary view and write to the **`heart_rate_silver`** delta table.
 # MAGIC 
-# MAGIC Using the **`trigger(once=True)`** option will process all records as a single batch.
+# MAGIC Using the **`trigger(availableNow=True)`** option will process all records (in multiple batches if needed) until no more data is available and then stop the stream.
 
 # COMMAND ----------
 
-query = (bpm_df.writeStream
+query = (spark.table("TEMP_SILVER").writeStream
                .option("checkpointLocation", f"{DA.paths.checkpoints}/heart_rate")
                .option("path", f"{DA.paths.user_db}/heart_rate_silver.delta")
-               .trigger(once=True)
+               .trigger(availableNow=True)
                .table("heart_rate_silver"))
 
 query.awaitTermination()
@@ -198,7 +198,37 @@ query.awaitTermination()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC <img src="https://files.training.databricks.com/images/icon_warn_32.png"> Before continuing, make sure you cancel any streams. The **`Run All`** button at the top of the screen will say **`Stop Execution`** if you have a stream still running. 
+# MAGIC Alternatively, instead of using SQL, the entire job can be expressed using Python Dataframes API.  The cell below has this logic refactored to Python.
+
+# COMMAND ----------
+
+from pyspark.sql import functions as F
+
+json_schema = "device_id LONG, time TIMESTAMP, heartrate DOUBLE"
+
+(spark
+   .readStream.table("bronze")
+   .filter("topic = 'bpm'")
+   .select(F.from_json(F.col("value").cast("string"), json_schema).alias("v"))
+   .select("v.*")
+   .writeStream
+       .option("checkpointLocation", f"{DA.paths.checkpoints}/heart_rate")
+       .option("path", f"{DA.paths.user_db}/heart_rate_silver.delta")
+       .trigger(availableNow=True)
+       .table("heart_rate_silver"))
+
+query.awaitTermination()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC <img src="https://files.training.databricks.com/images/icon_warn_32.png"> Before continuing, make sure you cancel any streams. The **`Run All`** button at the top of the screen will say **`Stop Execution`** if you have a stream still running.  Or run the code below to stop all streaming currently running on this cluster.
+
+# COMMAND ----------
+
+for stream in spark.streams.active:
+    stream.stop()
+    stream.awaitTermination()
 
 # COMMAND ----------
 

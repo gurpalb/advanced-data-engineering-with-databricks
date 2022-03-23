@@ -80,7 +80,7 @@ dbutils.fs.rm(f"{DA.paths.checkpoints}/registered_users", True)
 # MAGIC 
 # MAGIC To do this:
 # MAGIC * Remove the option limiting the amount of files processed per trigger (this is ignored when executing a batch anyway)
-# MAGIC * Change the trigger type to "once"
+# MAGIC * Change the trigger type to "availableNow"
 # MAGIC * Make sure to add **`.awaitTermination()`** to the end of your query to block execution of the next cell until the batch has completed
 
 # COMMAND ----------
@@ -94,7 +94,7 @@ def ingest_user_reg():
                   .load(DA.paths.raw_user_reg)
                   .writeStream
                   .option("checkpointLocation", f"{DA.paths.checkpoints}/registered_users")
-                  .trigger(once=True)
+                  .trigger(availableNow=True)
                   .option("path", f"{DA.paths.user_db}/registered_users")
                   .table("registered_users"))
     
@@ -140,16 +140,20 @@ salt = 'BEANS'
 
 # COMMAND ----------
 
+# # If using the Databricks secrets store, here's how you'd read it...
+# salt = dbutils.secrets.get(scope="DA-ADE3.03", key="salt")
+# salt
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Preview what your new key will look like.
 
 # COMMAND ----------
 
-preview_df = spark.sql(f"""
-  SELECT *, sha2(concat(user_id,"{salt}"), 256) AS alt_id
-  FROM registered_users
-""")
-display(preview_df)
+# MAGIC %sql
+# MAGIC SELECT *, sha2(concat(user_id,"{salt}"), 256) AS alt_id
+# MAGIC FROM registered_users
 
 # COMMAND ----------
 
@@ -166,11 +170,10 @@ display(preview_df)
 
 # COMMAND ----------
 
-# ANSWER
-spark.sql(f"""
-CREATE OR REPLACE FUNCTION salted_hash (id LONG, salt STRING) RETURNS STRING
-RETURN sha2(concat(id,salt), 256)
-""")
+# MAGIC %sql
+# MAGIC -- ANSWER
+# MAGIC CREATE OR REPLACE FUNCTION salted_hash (id LONG, salt STRING) RETURNS STRING
+# MAGIC RETURN sha2(concat(id,salt), 256)
 
 # COMMAND ----------
 
@@ -179,10 +182,11 @@ RETURN sha2(concat(id,salt), 256)
 
 # COMMAND ----------
 
+# Check your work
 set_a = spark.sql("SELECT sha2(concat(12,'BEANS'), 256) alt_id").collect()
 set_b = spark.sql("SELECT salted_hash(12,'BEANS') alt_id").collect()
-assert set_a == set_b
-print("All tests passed")
+assert set_a == set_b, "The 'salted_hash' function is returning the wrong result."
+print("All tests passed.")
 
 # COMMAND ----------
 
@@ -203,11 +207,10 @@ print("All tests passed")
 
 # COMMAND ----------
 
-spark.sql(f"""
-CREATE TABLE IF NOT EXISTS user_lookup (alt_id string, device_id long, mac_address string, user_id long)
-USING DELTA 
-LOCATION '{DA.paths.working_dir}/user_lookup'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS user_lookup (alt_id string, device_id long, mac_address string, user_id long)
+# MAGIC USING DELTA 
+# MAGIC LOCATION '${da.paths.working_dir}/user_lookup'
 
 # COMMAND ----------
 
@@ -229,7 +232,7 @@ def load_user_lookup():
                   .selectExpr(f"salted_hash(user_id,'{salt}') AS alt_id", "device_id", "mac_address", "user_id")
                   .writeStream
                   .option("checkpointLocation", f"{DA.paths.checkpoints}/user_lookup")
-                  .trigger(once=True)
+                  .trigger(availableNow=True)
                   .table("user_lookup"))
     
     query.awaitTermination()

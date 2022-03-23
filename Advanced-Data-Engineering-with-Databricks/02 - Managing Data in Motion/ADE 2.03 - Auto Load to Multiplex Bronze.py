@@ -36,7 +36,7 @@
 # MAGIC - Describe a multiplex design
 # MAGIC - Apply Auto Loader to incrementally process records
 # MAGIC - Configure trigger intervals
-# MAGIC - Use "trigger once" logic to execute triggered incremental loading of data.
+# MAGIC - Use "trigger-available-now" logic to execute triggered incremental loading of data.
 
 # COMMAND ----------
 
@@ -140,7 +140,7 @@ def process_bronze():
                   .writeStream
                   .option("checkpointLocation", f"{DA.paths.checkpoints}/bronze")
 #                 .partitionBy(FILL_IN)
-                  .trigger(once=True)
+                  .trigger(availableNow=True)
                   .table("bronze"))
 
     query.awaitTermination()

@@ -100,8 +100,7 @@ from pyspark.sql.window import Window
 
 window = Window.partitionBy("user_id").orderBy(F.col("timestamp").desc())
 
-ranked_df = (users_df.dropDuplicates()
-                     .withColumn("rank", F.rank().over(window))
+ranked_df = (users_df.withColumn("rank", F.rank().over(window))
                      .filter("rank == 1")
                      .drop("rank"))
 display(ranked_df)
@@ -121,7 +120,6 @@ display(ranked_df)
 # ranked_df = (spark.readStream
 #                   .table("bronze")
 #                   .filter("topic = 'user_info'")
-#                   .dropDuplicates()
 #                   .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
 #                   .select("v.*")
 #                   .filter(F.col("update_type").isin(["new", "update"]))
@@ -160,7 +158,6 @@ salt = "BEANS"
 unpacked_df = (spark.readStream
                     .table("bronze")
                     .filter("topic = 'user_info'")
-                    .dropDuplicates()
                     .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
                     .select("v.*")
                     .select(F.sha2(F.concat(F.col("user_id"), F.lit(salt)), 256).alias("alt_id"),
@@ -208,7 +205,7 @@ def batch_rank_upsert(microBatchDF, batchId):
 # MAGIC %md
 # MAGIC Now we can apply this function to our data. 
 # MAGIC 
-# MAGIC Here, we'll run a trigger once batch to process all records.
+# MAGIC Here, we'll run a trigger-available-now batch to process all records.
 
 # COMMAND ----------
 
@@ -216,7 +213,7 @@ query = (unpacked_df.writeStream
                     .foreachBatch(batch_rank_upsert)
                     .outputMode("update")
                     .option("checkpointLocation", f"{DA.paths.checkpoints}/batch_rank_upsert")
-                    .trigger(once=True)
+                    .trigger(availableNow=True)
                     .start())
 
 query.awaitTermination()

@@ -75,18 +75,17 @@ spark.conf.set("spark.databricks.delta.properties.defaults.enableChangeDataFeed"
 
 # COMMAND ----------
 
-spark.sql(f"""
-    CREATE TABLE IF NOT EXISTS bronze
-    (mrn BIGINT, dob DATE, sex STRING, gender STRING, first_name STRING, last_name STRING, street_address STRING, zip BIGINT, city STRING, state STRING, updated timestamp) 
-    LOCATION '{DA.paths.working_dir}/bronze'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS bronze
+# MAGIC   (mrn BIGINT, dob DATE, sex STRING, gender STRING, first_name STRING, last_name STRING, street_address STRING, zip BIGINT, city STRING, state STRING, updated timestamp) 
+# MAGIC LOCATION '${da.paths.working_dir}/bronze'
 
 # COMMAND ----------
 
 # MAGIC %md Create and start the stream.
 # MAGIC 
 # MAGIC For this example, we will:
-# MAGIC * Use continuous processing as opposed to trigger-once
+# MAGIC * Use continuous processing as opposed to trigger-once or trigger-available-now
 # MAGIC * Specify the schema as opposed to inferring it
 
 # COMMAND ----------
@@ -101,7 +100,7 @@ bronze_query = (spark.readStream
                      .writeStream
                      .format("delta")
                      .outputMode("append")
-                     #.trigger(once=True)
+                     #.trigger(availableNow=True)
                      .trigger(processingTime='5 seconds')
                      .option("checkpointLocation", f"{DA.paths.checkpoints}/bronze")
                      .table("bronze"))
@@ -130,11 +129,10 @@ DA.cdc_stream.load()
 
 # COMMAND ----------
 
-spark.sql(f"""
-    CREATE TABLE silver
-    DEEP CLONE delta.`{DA.paths.silver_source}`
-    LOCATION '{DA.paths.user_db}/silver'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE silver
+# MAGIC DEEP CLONE delta.`${da.paths.silver_source}`
+# MAGIC LOCATION '${da.paths.user_db}/silver'
 
 # COMMAND ----------
 
@@ -195,7 +193,7 @@ query = (spark.readStream
               .writeStream
               .foreachBatch(upsert_to_delta)
               .outputMode("update")
-              # .trigger(once=True)
+              # .trigger(availableNow=True)
               .trigger(processingTime='5 seconds')
               .start())
 
@@ -282,21 +280,20 @@ DA.cdc_stream.load()
 
 # COMMAND ----------
 
-spark.sql(f"""
-    CREATE TABLE gold (mrn BIGINT,
-                       new_street_address STRING,
-                       new_zip BIGINT,
-                       new_city STRING,
-                       new_state STRING,
-                       old_street_address STRING,
-                       old_zip BIGINT,
-                       old_city STRING,
-                       old_state STRING,
-                       updated_timestamp TIMESTAMP,
-                       processed_timestamp TIMESTAMP)
-    USING DELTA
-    LOCATION '{DA.paths.working_dir}/gold'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE gold (mrn BIGINT,
+# MAGIC                    new_street_address STRING,
+# MAGIC                    new_zip BIGINT,
+# MAGIC                    new_city STRING,
+# MAGIC                    new_state STRING,
+# MAGIC                    old_street_address STRING,
+# MAGIC                    old_zip BIGINT,
+# MAGIC                    old_city STRING,
+# MAGIC                    old_state STRING,
+# MAGIC                    updated_timestamp TIMESTAMP,
+# MAGIC                    processed_timestamp TIMESTAMP)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.working_dir}/gold'
 
 # COMMAND ----------
 
@@ -367,7 +364,7 @@ query = (new_df.withWatermark("processed_timestamp", "3 minutes")
                .filter("new_street_address <> old_street_address OR old_street_address IS NULL")
                .writeStream
                .outputMode("append")
-               #.trigger(once=True)
+               #.trigger(availableNow=True)
                .trigger(processingTime="5 seconds")
                .option("checkpointLocation", f"{DA.paths.checkpoints}/gold")
                .table("gold"))
@@ -389,7 +386,7 @@ DA.block_until_stream_is_ready(query)
 # MAGIC %md
 # MAGIC If we land a new raw file and wait a few seconds, we can see that all of our changes have propagated through our pipeline.
 # MAGIC 
-# MAGIC (This assumes you're using **`processingTime`** instead of trigger once processing. Scroll up to the gold table streaming write to wait for a new peak in the processing rate to know your data has arrived.)
+# MAGIC (This assumes you're using **`processingTime`** instead of trigger-once or trigger-available-now processing. Scroll up to the gold table streaming write to wait for a new peak in the processing rate to know your data has arrived.)
 
 # COMMAND ----------
 
@@ -451,6 +448,7 @@ for stream in spark.streams.active:
 # MAGIC SELECT * 
 # MAGIC FROM table_changes("silver", 0)
 # MAGIC WHERE mrn = 14125426
+# MAGIC ORDER BY _commit_version
 
 # COMMAND ----------
 

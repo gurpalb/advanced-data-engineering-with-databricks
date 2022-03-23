@@ -169,7 +169,7 @@ display(files)
 
 # MAGIC %sql
 # MAGIC CREATE OR REPLACE TABLE sensors_dev
-# MAGIC SHALLOW CLONE sensors_prod@v2
+# MAGIC SHALLOW CLONE sensors_prod VERSION AS OF 2
 # MAGIC LOCATION '${da.paths.working_dir}/dev/sensors'
 
 # COMMAND ----------

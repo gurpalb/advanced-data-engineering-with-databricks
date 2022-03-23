@@ -79,7 +79,7 @@ schema = """
 requests_df = (spark.readStream
                     .table("bronze")
                     .filter("topic = 'user_info'")
-                    .dropDuplicates()
+                    .dropDuplicates(["value"]) # Drop duplicate data, not just duplicate event deliveries.
                     .select(F.from_json(F.col("value").cast("string"), schema).alias("v"))
                     .select("v.*", F.col('v.timestamp').cast("timestamp").alias("requested"))
                     .filter("update_type = 'delete'")
@@ -87,7 +87,6 @@ requests_df = (spark.readStream
                             "requested",
                             F.date_add("requested", 30).alias("deadline"), 
                             F.lit("requested").alias("status")))
-
 
 # COMMAND ----------
 
@@ -126,7 +125,7 @@ query = (requests_df.writeStream
                     .outputMode("append")
                     .option("checkpointLocation", f"{DA.paths.checkpoints}/delete_requests")
                     .option("userMetadata", "Requests processed interactively")
-                    .trigger(once=True)
+                    .trigger(availableNow=True)
                     .table("delete_requests"))
 
 query.awaitTermination()
@@ -277,7 +276,7 @@ query = (deleteDF.writeStream
                  .foreachBatch(process_deletes)
                  .outputMode("update")
                  .option("checkpointLocation", f"{DA.paths.checkpoints}/deletes")
-                 .trigger(once=True)
+                 .trigger(availableNow=True)
                  .start())
 
 query.awaitTermination()

@@ -152,12 +152,11 @@ except pyspark.sql.utils.AnalysisException as e:
 
 # COMMAND ----------
 
-spark.sql(f"""
-CREATE TABLE IF NOT EXISTS bpm_quarantine
-(device_id LONG, time TIMESTAMP, heartrate DOUBLE)
-USING DELTA
-LOCATION '{DA.paths.user_db}/bpm_quarantine'
-""")
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS bpm_quarantine
+# MAGIC     (device_id LONG, time TIMESTAMP, heartrate DOUBLE)
+# MAGIC USING DELTA
+# MAGIC LOCATION '${da.paths.user_db}/bpm_quarantine'
 
 # COMMAND ----------
 
