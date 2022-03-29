@@ -76,7 +76,7 @@ class DBAcademyHelper():
             dbutils.fs.rm(self.paths.working_dir, True)
         
         # FIXME: Commented out because it might break during parallel testing.
-        # self.databricks_api('POST', '2.0/secrets/scopes/delete', scope="DA-ADE3.03")
+        # self.databricks_api('POST', '2.0/secrets/scopes/delete', on_error="ignore", scope="DA-ADE3.03")
         
         # Make sure that they were not modified
         if self.initialized: validate_datasets()
@@ -104,14 +104,16 @@ class DBAcademyHelper():
     @staticmethod
     def databricks_api(http_method, path, *, on_error="raise", **data):
         """
-         Args:
+        Invoke the Databricks REST API for the current workspace as the current user.
+        
+        Args:
             http_method: 'GET', 'PUT', 'POST', or 'DELETE'
             path: The path to append to the URL for the API endpoint, excluding the leading '/'.
-              For example: path="2.0/secrets/put"
-          on_error: 'raise', 'ignore', or 'return'.
-            'raise'  means propogate the HTTPError
-            'ignore' means return None
-            'return' means return the error message as json if possible, otherwise as text.  (Default)
+                For example: path="2.0/secrets/put"
+            on_error: 'raise', 'ignore', or 'return'.
+                'raise'  means propogate the HTTPError (Default)
+                'ignore' means return None
+                'return' means return the error message as parsed json if possible, otherwise as text.
 
         Returns:
             The return value of the API call as parsed JSON.  If the result is invalid JSON then the
@@ -130,10 +132,12 @@ class DBAcademyHelper():
             resp = web.request(http_method, url + path, params = params)
         else:
             resp = web.request(http_method, url + path, data = json.dumps(data))
-        if on_error=="raise":
+        if on_error.lower() in ["raise", "throw", "error"]:
             resp.raise_for_status()
-        if on_error=="ignore" and not (200 <= resp.status_code < 300):
+        elif on_error.lower() in ["ignore", "none"] and not (200 <= resp.status_code < 300):
             return None
+        elif on_error.lower() not in ["return", "return_error"]:
+            raise Exception("on_error argument must be one of 'raise', 'ignore' or 'return'")
         try:
             return resp.json()
         except json.JSONDecodeError as e:

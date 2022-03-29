@@ -56,10 +56,11 @@ def _install_datasets(reinstall=False):
     start = int(time.time())
     print(f"Copying /gym-mac-logs", end="...")
     (spark.read
-      .schema("first_timestamp double, gym long, last_timestamp double, mac string")
-      .json(f"{DA.hidden.datasets}/gym-logs")
-      .write
-      .save(f"{DA.hidden.datasets}/gym-mac-logs"))
+          .schema("first_timestamp double, gym long, last_timestamp double, mac string")
+          .json(f"{DA.hidden.datasets}/gym-logs")
+          .coalesce(1)
+          .write
+          .save(f"{DA.hidden.datasets}/gym-mac-logs"))
     print(f"({int(time.time())-start} seconds)")
     
     print()
@@ -75,7 +76,10 @@ def validate_path(expected, path):
     message = f"Expected {expected} files, found {len(files)} in {path}"
     for file in files:
         message += f"\n{file.path}"
-    assert len(files) == expected, message 
+    
+    if len(files) != expected:
+      display(files)
+      raise AssertionError(message)
 
 def validate_datasets():  
     import time
@@ -138,7 +142,7 @@ def validate_datasets():
     validate_path(2, f"{DA.hidden.datasets}/user-lookup")
     # validate_path(0, f"{DA.hidden.datasets}/user-lookup/_delta_log")
 
-    validate_path(5, f"{DA.hidden.datasets}/gym-mac-logs")
+    validate_path(2, f"{DA.hidden.datasets}/gym-mac-logs")
     # validate_path(0, f"{DA.hidden.datasets}/gym-mac-logs/_delta_log")
 
     print(f"({int(time.time())-start} seconds)")   
