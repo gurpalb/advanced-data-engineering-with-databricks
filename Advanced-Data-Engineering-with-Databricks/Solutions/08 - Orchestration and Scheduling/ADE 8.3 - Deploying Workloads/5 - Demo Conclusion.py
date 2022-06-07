@@ -7,11 +7,31 @@
 
 # COMMAND ----------
 
-# MAGIC %md # Project Information
+# MAGIC %md
+# MAGIC # Conclusion of Streaming Jobs Demo
 # MAGIC 
-# MAGIC * Name: **Advanced Data Engineering With Databricks**
-# MAGIC * Version:  **2.5.0**
-# MAGIC * Built On: **Jun 7, 2022 at 17:16:15 UTC**
+# MAGIC Key Take Aways
+# MAGIC * For high-utilization, we can combine many streams in one task.
+# MAGIC * For highly-critical streams, we can isolate them to a single task.
+# MAGIC * Difference between Always-On-Streams vs Run-Now-Streams & Available-Now-Streams
+# MAGIC * Task-Specific Clusters vs General-Purpose Clusters
+# MAGIC * Power of warm pools
+
+# COMMAND ----------
+
+# MAGIC %run ../../Includes/Classroom-Setup-8.3.4
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Wrapping Up
+# MAGIC 
+# MAGIC * Stop/Pause the jobs
+# MAGIC * Run the following cell to delete the tables and files associated with this lesson.
+
+# COMMAND ----------
+
+DA.cleanup()
 
 # COMMAND ----------
 

@@ -103,60 +103,84 @@ DA.install_datasets(reinstall=False)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Module 01 - Architecting for the Lakehouse
-# MAGIC 
+# MAGIC ## 00 - Getting Started
 # MAGIC * [Getting Started - Agenda]($./00 - Getting Started - Agenda)
-# MAGIC * [ADE 1.01 - Setting Up Tables]($./01 - Architecting for the Lakehouse/ADE 1.01 - Setting Up Tables)
-# MAGIC * [ADE 1.02 - Optimizing Data Storage]($./01 - Architecting for the Lakehouse/ADE 1.02 - Optimizing Data Storage)
-# MAGIC * [ADE 1.03 - Understanding Delta Lake Transactions]($./01 - Architecting for the Lakehouse/ADE 1.03 - Understanding Delta Lake Transactions)
-# MAGIC * [ADE 1.04 - Streaming Design Patterns]($./01 - Architecting for the Lakehouse/ADE 1.04 - Streaming Design Patterns)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Module 02 - Managing Data in Motion
-# MAGIC * [ADE 2.01 - Using Clone with Delta Lake]($./02 - Managing Data in Motion/ADE 2.01 - Using Clone with Delta Lake)
-# MAGIC * [ADE 2.02 - Auto Loader]($./02 - Managing Data in Motion/ADE 2.02 - Auto Loader)
-# MAGIC * [ADE 2.03 - Auto Load to Multiplex Bronze]($./02 - Managing Data in Motion/ADE 2.03 - Auto Load to Multiplex Bronze)
-# MAGIC * [ADE 2.04 - Streaming from Multiplex Bronze]($./02 - Managing Data in Motion/ADE 2.04 - Streaming from Multiplex Bronze)
-# MAGIC * [ADE 2.05 - Streaming Deduplication]($./02 - Managing Data in Motion/ADE 2.05 - Streaming Deduplication)
-# MAGIC * [ADE 2.06 - Quality Enforcement]($./02 - Managing Data in Motion/ADE 2.06 - Quality Enforcement)
-# MAGIC * [ADE 2.07 - Promoting to Silver]($./02 - Managing Data in Motion/ADE 2.07 - Promoting to Silver)
-# MAGIC * [ADE 2.08 - Type 2 SCD]($./02 - Managing Data in Motion/ADE 2.08 - Type 2 SCD)
-# MAGIC * [ADE 2.09 - Stream Static Join]($./02 - Managing Data in Motion/ADE 2.09 - Stream Static Join)
+# MAGIC ## 01 - OPTIONAL Review
+# MAGIC * [ADE 1.1 - Setting Up Tables]($./01 - OPTIONAL Review/ADE 1.1 - Setting Up Tables)
+# MAGIC * [ADE 1.2 - Optimizing Data Storage]($./01 - OPTIONAL Review/ADE 1.2 - Optimizing Data Storage)
+# MAGIC * [ADE 1.3 - Understanding Delta Lake Transactions]($./01 - OPTIONAL Review/ADE 1.3 - Understanding Delta Lake Transactions)
+# MAGIC * [ADE 1.4 - Using Clone with Delta Lake]($./01 - OPTIONAL Review/ADE 1.4 - Using Clone with Delta Lake)
+# MAGIC * [ADE 1.5 - Auto Loader]($./01 - OPTIONAL Review/ADE 1.5 - Auto Loader)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Module 03 - Privacy and Governance for Lakehouse Analytics
-# MAGIC * [ADE 3.01 - Stored Views]($./03 - Privacy and Governance for Lakehouse Analytics/ADE 3.01 - Stored Views) 
-# MAGIC * [ADE 3.02 - Materialized Views]($./03 - Privacy and Governance for Lakehouse Analytics/ADE 3.02 - Materialized Views)
-# MAGIC * [ADE 3.03 - PII Lookup Table]($./03 - Privacy and Governance for Lakehouse Analytics/ADE 3.03 - PII Lookup Table)
-# MAGIC * [ADE 3.04 - Storing PII Securely]($./03 - Privacy and Governance for Lakehouse Analytics/ADE 3.04 - Storing PII Securely)
-# MAGIC * [ADE 3.05 - Deidentified PII Access]($./03 - Privacy and Governance for Lakehouse Analytics/ADE 3.05 - Deidentified PII Access)
-# MAGIC * [ADE 3.06 - Processing Records from Change Data Feed]($./03 - Privacy and Governance for Lakehouse Analytics/ADE 3.06 - Processing Records from Change Data Feed)
-# MAGIC * [ADE 3.07 - Propagating Deletes with CDF]($./03 - Privacy and Governance for Lakehouse Analytics/ADE 3.07 - Propagating Deletes with CDF)
-# MAGIC * [ADE 3.08 - Deleting at Partition Boundaries]($./03 - Privacy and Governance for Lakehouse Analytics/ADE 3.08 - Deleting at Partition Boundaries)
+# MAGIC ## 02 - Architecting for the Lakehouse
+# MAGIC * [ADE 2.1 - Streaming Design Patterns]($./02 - Architecting for the Lakehouse/ADE 2.1 - Streaming Design Patterns)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Module 04 - Databricks in Production
+# MAGIC ## 03 - Bronze Ingestion Patterns
+# MAGIC * [ADE 3.1 - Auto Load to Multiplex Bronze]($./03 - Bronze Ingestion Patterns/ADE 3.1 - Auto Load to Multiplex Bronze)
+# MAGIC * [ADE 3.2 - Streaming from Multiplex Bronze]($./03 - Bronze Ingestion Patterns/ADE 3.2 - Streaming from Multiplex Bronze)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 04 - Promoting to Silver
+# MAGIC * [ADE 4.1 - Streaming Deduplication]($./04 - Promoting to Silver/ADE 4.1 - Streaming Deduplication)
+# MAGIC * [ADE 4.2 - Quality Enforcement]($./04 - Promoting to Silver/ADE 4.2 - Quality Enforcement)
+# MAGIC * [ADE 4.3 - Promoting to Silver]($./04 - Promoting to Silver/ADE 4.3 - Promoting to Silver)
+# MAGIC * [ADE 4.4 - Type 2 SCD]($./04 - Promoting to Silver/ADE 4.4 - Type 2 SCD)
+# MAGIC * [ADE 4.5 - Stream Static Join]($./04 - Promoting to Silver/ADE 4.5 - Stream Static Join)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 05 - Gold Query Layer
+# MAGIC * [ADE 5.1 - Stored Views]($./05 - Gold Query Layer/ADE 5.1 - Stored Views)
+# MAGIC * [ADE 5.2 - Materialized Gold Tables]($./05 - Gold Query Layer/ADE 5.2 - Materialized Gold Tables)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 06 - Storing Data Securely
+# MAGIC * [ADE 6.1 - PII Lookup Table]($./06 - Storing Data Securely/ADE 6.1 - PII Lookup Table)
+# MAGIC * [ADE 6.2 - Storing PII Securely]($./06 - Storing Data Securely/ADE 6.2 - Storing PII Securely)
+# MAGIC * [ADE 6.3 - Deidentified PII Access]($./06 - Storing Data Securely/ADE 6.3 - Deidentified PII Access)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 07 - Propagating Updates and Deletes
+# MAGIC * [ADE 7.1 - Processing Records from Change Data Feed]($./07 - Propagating Updates and Deletes/ADE 7.1 - Processing Records from Change Data Feed)
+# MAGIC * [ADE 7.2 - Propagating Deletes with CDF]($./07 - Propagating Updates and Deletes/ADE 7.2 - Propagating Deletes with CDF)
+# MAGIC * [ADE 7.3 - Deleting at Partition Boundaries]($./07 - Propagating Updates and Deletes/ADE 7.3 - Deleting at Partition Boundaries)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 08 - Orchestration and Scheduling
 # MAGIC 
 # MAGIC * ADE 4.01 - Multi-Task Jobs
-# MAGIC   * [Task_1, Create Database]($./04 - Databricks in Production/ADE 4.01 - Multi-Task Jobs/Task_1, Create Database)
-# MAGIC   * [Task_2, From Task 2]($./04 - Databricks in Production/ADE 4.01 - Multi-Task Jobs/Task_2, From Task 2)
-# MAGIC   * [Task_3, From Task 3]($./04 - Databricks in Production/ADE 4.01 - Multi-Task Jobs/Task_3, From Task 3)
-# MAGIC   * [Task_4, Key-Param]($./04 - Databricks in Production/ADE 4.01 - Multi-Task Jobs/Task_4, Key-Param)
-# MAGIC   * [Task_5, Create task_5]($./04 - Databricks in Production/ADE 4.01 - Multi-Task Jobs/Task_5, Create task_5)
-# MAGIC   * [Task_6, Errors]($./04 - Databricks in Production/ADE 4.01 - Multi-Task Jobs/Task_6, Errors)
-# MAGIC   * [Task_7, Cleanup]($./04 - Databricks in Production/ADE 4.01 - Multi-Task Jobs/Task_7, Cleanup)
-# MAGIC * [ADE 4.02 - Error Prone]($./04 - Databricks in Production/ADE 4.02 - Error Prone)
-# MAGIC * ADE 4.03 - Deploying Workloads
-# MAGIC   * [1 - Reset Pipelines]($./04 - Databricks in Production/ADE 4.03 - Deploying Workloads/1 - Reset Pipelines)
-# MAGIC   * [2 - Schedule Streaming Jobs]($./04 - Databricks in Production/ADE 4.03 - Deploying Workloads/2 - Schedule Streaming Jobs)
-# MAGIC   * [3 - Schedule Batch Jobs]($./04 - Databricks in Production/ADE 4.03 - Deploying Workloads/3 - Schedule Batch Jobs)
-# MAGIC   * [4 - Streaming Progress]($./04 - Databricks in Production/ADE 4.03 - Deploying Workloads/4 - Streaming Progress)
+# MAGIC   * [Task_1, Create Database]($./08 - Orchestration and Scheduling/ADE 8.1 - Multi-Task Jobs/Task_1, Create Database)
+# MAGIC   * [Task_2, From Task 2]($./08 - Orchestration and Scheduling/ADE 8.1 - Multi-Task Jobs/Task_2, From Task 2)
+# MAGIC   * [Task_3, From Task 3]($./08 - Orchestration and Scheduling/ADE 8.1 - Multi-Task Jobs/Task_3, From Task 3)
+# MAGIC   * [Task_4, Key-Param]($./08 - Orchestration and Scheduling/ADE 8.1 - Multi-Task Jobs/Task_4, Key-Param)
+# MAGIC   * [Task_5, Create task_5]($./08 - Orchestration and Scheduling/ADE 8.1 - Multi-Task Jobs/Task_5, Create task_5)
+# MAGIC   * [Task_6, Errors]($./08 - Orchestration and Scheduling/ADE 8.1 - Multi-Task Jobs/Task_6, Errors)
+# MAGIC   * [Task_7, Cleanup]($./08 - Orchestration and Scheduling/ADE 8.1 - Multi-Task Jobs/Task_7, Cleanup)
+# MAGIC * [ADE 8.2 - OPTIONAL Error Prone]($./08 - Orchestration and Scheduling/ADE 8.2 - OPTIONAL Error Prone)
+# MAGIC * ADE 8.3 - Deploying Workloads
+# MAGIC   * [1 - Reset Pipelines]($./08 - Orchestration and Scheduling/ADE 8.3 - Deploying Workloads/1 - Reset Pipelines)
+# MAGIC   * [2 - Schedule Streaming Jobs]($./08 - Orchestration and Scheduling/ADE 8.3 - Deploying Workloads/2 - Schedule Streaming Jobs)
+# MAGIC   * [3 - Schedule Batch Jobs]($./08 - Orchestration and Scheduling/ADE 8.3 - Deploying Workloads/3 - Schedule Batch Jobs)
+# MAGIC   * [4 - Streaming Progress]($./08 - Orchestration and Scheduling/ADE 8.3 - Deploying Workloads/4 - Streaming Progress)
 
 # COMMAND ----------
 
