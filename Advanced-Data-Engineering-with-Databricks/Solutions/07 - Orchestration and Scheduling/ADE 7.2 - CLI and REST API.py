@@ -7,11 +7,15 @@
 
 # COMMAND ----------
 
-# MAGIC %md # Project Information
+# MAGIC %md # CLI and REST API Lab
 # MAGIC 
-# MAGIC * Name: **Advanced Data Engineering With Databricks**
-# MAGIC * Version:  **2.6.0**
-# MAGIC * Built On: **Jun 13, 2022 at 23:55:13 UTC**
+# MAGIC Import this Git repo into your Databricks workspace: [cli-demo](https://github.com/databricks-academy/cli-demo)
+# MAGIC 
+# MAGIC Then, navigate to the following Markdown files to access demo instructions for this lesson.
+# MAGIC | Demo | File Path |
+# MAGIC | --- | --- |
+# MAGIC | Working with the Databricks CLI | [cli-demo/cli-orch.md](https://github.com/databricks-academy/cli-demo/blob/published/cli-orch.md) |
+# MAGIC | Configuring and Using the Databricks REST API | [cli-demo/api-demo.md](https://github.com/databricks-academy/cli-demo/blob/published/api-demo.md) |
 
 # COMMAND ----------
 

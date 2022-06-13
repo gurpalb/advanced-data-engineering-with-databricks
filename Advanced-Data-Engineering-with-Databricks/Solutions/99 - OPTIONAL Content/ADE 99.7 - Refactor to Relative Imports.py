@@ -7,11 +7,16 @@
 
 # COMMAND ----------
 
-# MAGIC %md # Project Information
+# MAGIC %md # Refactoring to Relative Imports Demo
 # MAGIC 
-# MAGIC * Name: **Advanced Data Engineering With Databricks**
-# MAGIC * Version:  **2.6.0**
-# MAGIC * Built On: **Jun 13, 2022 at 23:55:13 UTC**
+# MAGIC Import this Git repo into your Databricks workspace: [cli-demo](https://github.com/databricks-academy/cli-demo)
+# MAGIC 
+# MAGIC Then, navigate to the following notebooks to access demo instructions for this lesson.
+# MAGIC 
+# MAGIC | Demo | Notebook Path |
+# MAGIC | --- | --- |
+# MAGIC | Refactor %run to Relative Imports | [cli-demo/notebooks/00_refactoring_to_relative_import](https://github.com/databricks-academy/cli-demo/blob/published/notebooks/00_refactoring_to_relative_import.py) |
+# MAGIC | Relative Imports with Python Wheel | [cli-demo/notebooks/01_installing_from_a_wheel](https://github.com/databricks-academy/cli-demo/blob/published/notebooks/01_installing_from_a_wheel.py) |
 
 # COMMAND ----------
 

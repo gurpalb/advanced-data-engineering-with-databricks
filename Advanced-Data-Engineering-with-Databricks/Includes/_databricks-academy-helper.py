@@ -28,7 +28,9 @@ class DBAcademyHelper():
         self.initialized = False
         self.start = int(time.time())
         
-        self.course_name = "adewd"
+        self.course_name = "adewd"          # Name should be the full name, not the code.
+        self.course_code = self.course_name # Hacking this as a temporary solution
+        
         self.lesson = lesson.lower()
 
         # Define username
@@ -142,7 +144,16 @@ class DBAcademyHelper():
             return resp.json()
         except json.JSONDecodeError as e:
             return resp.body
+
+    def get_username_hash(self):
+        """
+        Utility method to split the user's email address, dropping the domain, and then creating a hash based on the full email address and course_code. The primary usage of this function is in creating the user's database, but is also used in creating SQL Endpoints, DLT Piplines, etc - any place we need a short, student-specific name.
+        """
+        da_name = self.username.split("@")[0]                                   # Split the username, dropping the domain
+        da_hash = abs(hash(f"{self.username}-{self.course_code}")) % 10000      # Create a has from the full username and course code
+        return da_name, da_hash
         
+          
 dbutils.widgets.text("lesson", "None")
 lesson = dbutils.widgets.get("lesson")
 DA = DBAcademyHelper(None if lesson == "None" else lesson)
