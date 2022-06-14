@@ -121,8 +121,8 @@ DA.install_datasets(reinstall=False)
 # MAGIC %md
 # MAGIC ## 02 - Bronze Ingestion Patterns
 # MAGIC * Prerequisite Content - OPTIONAL
-# MAGIC   * [ADE 1.4 - Using Clone with Delta Lake]($./99 - OPTIONAL Content/ADE 99.4 - Using Clone with Delta Lake)
-# MAGIC   * [ADE 1.5 - Auto Loader]($./99 - OPTIONAL Content/ADE 99.5 - Auto Loader)
+# MAGIC   * [ADE 99.4 - Using Clone with Delta Lake]($./99 - OPTIONAL Content/ADE 99.4 - Using Clone with Delta Lake)
+# MAGIC   * [ADE 99.5 - Auto Loader]($./99 - OPTIONAL Content/ADE 99.5 - Auto Loader)
 # MAGIC * [ADE 2.1 - Auto Load to Multiplex Bronze]($./02 - Bronze Ingestion Patterns/ADE 2.1 - Auto Load to Multiplex Bronze)
 # MAGIC * [ADE 2.2 - Streaming from Multiplex Bronze]($./02 - Bronze Ingestion Patterns/ADE 2.2 - Streaming from Multiplex Bronze)
 
@@ -180,8 +180,8 @@ DA.install_datasets(reinstall=False)
 # MAGIC   * [4 - Streaming Progress]($./07 - Orchestration and Scheduling/ADE 7.3 - Deploying Workloads/4 - Streaming Progress)
 # MAGIC   * [5 - Demo Conclusion]($./07 - Orchestration and Scheduling/ADE 7.3 - Deploying Workloads/5 - Demo Conclusion)
 # MAGIC * Additional Content - OPTIONAL
-# MAGIC   * [ADE 99.6 - OPTIONAL Error Prone]($./99 - OPTIONAL Content/ADE 99.6 - Error Prone)
-# MAGIC   * [ADE 99.7 - OPTIONAL Error Prone]($./99 - OPTIONAL Content/ADE 99.7 - Refactor to Relative Imports)
+# MAGIC   * [ADE 99.6 - Error Prone]($./99 - OPTIONAL Content/ADE 99.6 - Error Prone)
+# MAGIC   * [ADE 99.7 - Refactor to Relative Imports]($./99 - OPTIONAL Content/ADE 99.7 - Refactor to Relative Imports)
 
 # COMMAND ----------
 
